@@ -1,0 +1,5 @@
+---
+server_hardening_name: 'openstack/ansible-hardening'
+server_hardening_dir: '{{ common_git_clones_dir }}/{{ server_hardening_name }}'
+server_hardening_clone_url: '{{ common_github_clone_url }}/{{ server_hardening_name }}.git'
+

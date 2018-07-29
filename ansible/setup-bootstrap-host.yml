@@ -1,17 +1,6 @@
 ---
 - hosts: localhost
   user: admin
-  vars:
-    project_dir: '{{ playbook_dir }}/..'
-    workspace_dir: '{{ project_dir }}/..'
-    target_dir: '{{ project_dir }}/target'
-    git_clones_dir: '{{ target_dir }}/git_clones'
-    ansible_hardening_name: 'openstack/ansible-hardening'
-    ansible_hardening_dir: '{{ git_clones_dir }}/{{ ansible_hardening_name }}'
-    github_clone_url: 'https://github.com/'
-    ansible_hardening_clone_url= '{{ github_clone_url }}/{{ ansible_hardening_name }}.git'
-  tasks:
-    - name: Clone the ansible hardening repo
-      git:
-         repo: '{{ ansible_hardening_clone_url }}'
-         dest: '{{ ansible_hardening_dir  }}'
+  roles:
+    - { role: common }
+    - { role: server-hardening }

@@ -1,6 +1,10 @@
 ---
+# Most of the information for this role comes from:
+#   https://rudd-o.com/linux-and-free-software/installing-fedora-on-top-of-zfs
 - name: 'Identify the rpm distribution'
   shell: rpm -E %dist
+  args:
+    warn: no
   register: rpm_dist
 
 - name: 'Install repo details for zfs'
@@ -8,6 +12,186 @@
     name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
     disable_gpg_check: yes
 
-- name: 'Install zfs system'
+- name: 'Install zfs package'
   dnf: 
-    name: 'kernel-devel, zfs'
+    name: 'kernel-devel, zfs, libselinux-python, rpm-build, expect'
+
+- name: 'Check if zfs module will load during reboot'
+  stat: 
+    path: /etc/modules-load.d/zfs.conf
+  register: zfs_module_loading
+  no_log: true
+
+- name: 'Load zfs module during first setup'
+  modprobe:
+    name: zfs
+    state: present
+  when: zfs_module_loading.stat.exists == False
+
+- name: 'Ensure zfs module is loaded during boot sequence'
+  blockinfile:
+    path: /etc/modules-load.d/zfs.conf
+    create: yes
+    block: |
+      # Load zfs kernel module
+      zfs
+
+- name: 'clone repo containing grub-zfs-fixer rpm source'
+  git:
+     repo: '{{ repo_url }}'
+     dest: '{{ repo_dir }}'
+
+- name: 'Create SRPM grub-zfs-fixer.tar.gz file'
+  archive:
+    path: '{{ repo_dir }}/grub-zfs-fixer'
+    dest: '{{ common_target_dir }}/grub-zfs-fixer.tar.gz'
+    
+- name: 'Create the RPM from grub-zfs-fixer.tar.gz'
+  shell: 'rpmbuild -ta {{ common_target_dir }}/grub-zfs-fixer.tar.gz'
+
+- name: 'Find location of RPM'
+  find:
+    paths: '/root/rpmbuild/RPMS/noarch'
+    patterns: 'grub-zfs-fixer*'
+  register: rpm_path_find
+
+- name: 'Install the RPM created from grub-zfs-fixer.tar.gz'
+  dnf: 
+    name: '{{ rpm_path_find.files[0].path }}'
+    state: present
+
+- name: 'Load metadata about partition on /dev/sda'
+  parted:
+    device: /dev/sda
+    unit: MiB
+  register: sda_parted_info
+
+- name: 'Partition 5 (/dev/sda5) must be mounted as root'
+  shell: mount | grep '/dev/sda5 on / '
+
+- name: 'Find count of zpools called pool'
+  shell: zpool list | grep ^pool | wc -l
+  register: zpool_list_count
+  
+- name: 'Create an inital pool to work with'
+  shell: zpool create pool -m none -o ashift=12 /dev/sda4
+  when: zpool_list_count.stdout == '0'
+  
+- name: 'Find count of pool/ROOT/fedora/home filesystem'
+  shell: zfs list | grep pool/ROOT/fedora/home | wc -l 
+  register: zfs_list_count
+  
+- name: 'Create an inital filesystem for fedora'
+  shell: zfs create -p pool/ROOT/fedora/{{ item }}
+  with_items:
+    - home
+    - var
+  when: zfs_list_count.stdout == '0'
+
+- name: 'Turn compression on for zfs pool'
+  shell: zfs set compression=on pool
+  
+- name: 'Disable Access Time recording for zfs pool to improve responsiveness'
+  shell: zfs set atime=off pool
+
+- name: 'Allow acl properties to be applied during rsync'
+  shell: zfs set aclinherit=passthrough pool
+
+- name: 'Is zpool located under /sysroot'
+  shell: zpool list | grep ^pool.*/sysroot$ | wc -l
+  register: zpool_sysroot_count
+  
+- name: 'Export zfs pool to allow mountpoint to be modified'
+  shell: zpool export pool
+  when: zpool_sysroot_count.stdout == '0'
+
+- name: 'Import zfs pool under /sysroot '
+  shell: zpool import -o altroot=/sysroot pool
+  when: zpool_sysroot_count.stdout == '0'
+
+- name: 'Is zfs filesystem mounted under /sysroot'
+  shell: zfs list | grep ^pool/ROOT/fedora.*/sysroot$ | wc -l
+  register: zfs_sysroot_count
+  
+- name: 'Set the mountpoint for zfs root filesystem'
+  shell: zfs set mountpoint=/ pool/ROOT/fedora
+  when: zfs_sysroot_count.stdout == '0'
+
+- name: 'Copy the existing fs into /sysroot'
+  shell: rsync --exclude=/sys -axvHASX / /sysroot/
+
+- name: 'Is /sysroot/dev already bind mounted'
+  shell: mountpoint /sysroot/dev
+  ignore_errors: yes
+  no_log: true
+  register: is_dev_mountpoint
+
+- name: 'Bind mount /dev into chroot /sysroot/dev'
+  shell: mount --bind /dev /sysroot/dev
+  when: is_dev_mountpoint.rc == 1
+
+- name: 'Is proc already mounted'
+  shell: mountpoint /sysroot/proc
+  ignore_errors: yes
+  no_log: true
+  register: is_proc_mountpoint
+
+- name: 'Create proc mount in chroot'
+  shell: |
+    set timeout 300
+    spawn chroot /sysroot
+
+    expect "[root@* /]#"
+    send "mount -t proc proc /proc\n"
+    
+    exit 0
+  args:
+    executable: /usr/bin/expect
+  delegate_to: localhost
+  when: is_proc_mountpoint.rc == 1
+
+- name: 'Is sys already mounted'
+  shell: mountpoint /sysroot/sys
+  ignore_errors: yes
+  no_log: true
+  register: is_sys_mountpoint
+
+- name: 'Create sys mount in chroot'
+  shell: |
+    set timeout 300
+    spawn chroot /sysroot
+
+    expect "[root@* /]#"
+    send "mount -t sysfs sys /sys\n"
+    
+    exit 0
+  args:
+    executable: /usr/bin/expect
+  delegate_to: localhost
+  when: is_sys_mountpoint.rc == 1
+
+- name: 'Is boot already mounted'
+  shell: mountpoint /sysroot/boot
+  ignore_errors: yes
+  no_log: true
+  register: is_boot_mountpoint
+
+- name: 'Create boot mount in chroot'
+  shell: |
+    set timeout 300
+    spawn chroot /sysroot
+
+    expect "[root@* /]#"
+    send "mount /boot\n"
+    
+    exit 0
+  args:
+    executable: /usr/bin/expect
+  delegate_to: localhost
+  when: is_boot_mountpoint.rc == 1
+
+  
+
+
+
+  

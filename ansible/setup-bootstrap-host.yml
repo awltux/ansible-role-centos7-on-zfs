@@ -4,4 +4,4 @@
   roles:
     - { role: common }
     - { role: load-server-hardening }
-    - { role: '{{ server_hardening_dir }}' }
+    - { role: '{{ playbook_dir }}/../target/git_clones/openstack/ansible-hardening' }

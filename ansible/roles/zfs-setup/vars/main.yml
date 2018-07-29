@@ -1,0 +1,5 @@
+---
+repo_name: 'Rudd-O/zfs-fedora-installer'
+repo_dir: '{{ common_git_clones_dir }}/{{ repo_name }}'
+repo_url: '{{ common_github_clone_url }}/{{ repo_name }}.git'
+

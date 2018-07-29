@@ -3,4 +3,5 @@
   user: admin
   roles:
     - { role: common }
-    - { role: server-hardening }
+    - { role: load-server-hardening }
+    - { role: '{{ server_hardening_dir }}' }

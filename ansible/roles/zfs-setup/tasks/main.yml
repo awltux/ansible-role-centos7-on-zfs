@@ -1,10 +1,13 @@
 ---
-- name: 'Clone the zfs fedora installer repo'
-  git:
-    repo: '{{ repo_url }}'
-    dest: '{{ repo_dir  }}'
+- name: 'Identify the rpm distribution'
+  shell: rpm -E %dist
+  register: rpm_dist
 
-- name: Run the deploy-zfs script
-  shell: deploy-zfs
-  args:
-    chdir: '{{ repo_dir  }}'
+- name: 'Install repo details for zfs'
+  dnf:
+    name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+    disable_gpg_check: yes
+
+- name: 'Install zfs system'
+  dnf: 
+    name: 'kernel-devel, zfs'

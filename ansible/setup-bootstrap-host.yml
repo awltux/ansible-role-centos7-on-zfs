@@ -6,5 +6,5 @@
     - { role: common }
 #    - { role: load-server-hardening }
 #    - { role: '{{ playbook_dir }}/../target/git_clones/openstack/ansible-hardening' }
-    - { role: zfs-filesystem }
+    - { role: zfs-setup }
 #    - { role: '{{ playbook_dir }}/../target/git_clones/Rudd-O/zfs-fedora-installer' }

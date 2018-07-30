@@ -68,6 +68,7 @@
 
 - name: 'Partition 5 (/dev/sda5) must be mounted as root'
   shell: mount | grep '/dev/sda5 on / '
+  no_log: true
 
 - name: 'Find count of zpools called pool'
   shell: zpool list | grep ^pool | wc -l
@@ -120,78 +121,112 @@
 - name: 'Copy the existing fs into /sysroot'
   shell: rsync --exclude=/sys -axvHASX / /sysroot/
 
-- name: 'Is /sysroot/dev already bind mounted'
-  shell: mountpoint /sysroot/dev
-  ignore_errors: yes
-  no_log: true
-  register: is_dev_mountpoint
-
 - name: 'Bind mount /dev into chroot /sysroot/dev'
-  shell: mount --bind /dev /sysroot/dev
-  when: is_dev_mountpoint.rc == 1
-
-- name: 'Is proc already mounted'
-  shell: mountpoint /sysroot/proc
-  ignore_errors: yes
-  no_log: true
-  register: is_proc_mountpoint
-
-- name: 'Create proc mount in chroot'
   shell: |
-    set timeout 300
-    spawn chroot /sysroot
+    if mountpoint /sysroot/dev ; then
+      echo "/sysroot/dev already mounted"
+    else
+      mount --bind /dev /sysroot/dev
+      if ! mountpoint /sysroot/dev ; then
+        echo "Failed to mount /sysroot/dev"
+        exit 1
+      else
+        echo "SUCCESS"
+      fi
+    fi
+  register: mount_var
+  chenged_when: mount_dev.stdout == "SUCCESS"
 
-    expect "[root@* /]#"
-    send "mount -t proc proc /proc\n"
-    
-    exit 0
-  args:
-    executable: /usr/bin/expect
-  delegate_to: localhost
-  when: is_proc_mountpoint.rc == 1
-
-- name: 'Is sys already mounted'
-  shell: mountpoint /sysroot/sys
-  ignore_errors: yes
-  no_log: true
-  register: is_sys_mountpoint
-
-- name: 'Create sys mount in chroot'
-  shell: |
-    set timeout 300
-    spawn chroot /sysroot
-
-    expect "[root@* /]#"
-    send "mount -t sysfs sys /sys\n"
-    
-    exit 0
-  args:
-    executable: /usr/bin/expect
-  delegate_to: localhost
-  when: is_sys_mountpoint.rc == 1
-
-- name: 'Is boot already mounted'
-  shell: mountpoint /sysroot/boot
-  ignore_errors: yes
-  no_log: true
-  register: is_boot_mountpoint
-
-- name: 'Create boot mount in chroot'
-  shell: |
-    set timeout 300
-    spawn chroot /sysroot
-
-    expect "[root@* /]#"
-    send "mount /boot\n"
-    
-    exit 0
-  args:
-    executable: /usr/bin/expect
-  delegate_to: localhost
-  when: is_boot_mountpoint.rc == 1
-
+- name: 'Create /proc mount in chroot'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        if mountpoint /proc ; then
+          echo "/proc already mounted"
+        else
+          mount -t proc none /proc
+          echo "/proc mounted"
+          if ! mountpoint /proc ; then
+            echo "Failed to mount /proc"
+            exit 1
+          else
+            echo "SUCCESS"
+          fi
+        fi
+      HEREDOC
+  register: mount_var
+  chenged_when: mount_dev.stdout == "SUCCESS"
   
-
-
-
+- name: 'Create /sys mount in chroot'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        if mountpoint /sys ; then
+          echo "/sys already mounted"
+        else
+          mount -t sysfs none /sys
+          echo "/sys mounted"
+          if ! mountpoint /sys ; then
+            echo "Failed to mount /sys"
+            exit 1
+          else
+            echo "SUCCESS"
+          fi
+        fi
+      HEREDOC
+  register: mount_var
+  chenged_when: mount_dev.stdout == "SUCCESS"
   
+- name: 'Create /boot mount in chroot using fstab entry'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        if mountpoint /boot ; then
+          echo "/boot already mounted"
+        else
+          mount /boot
+          echo "/boot mounted"
+          if ! mountpoint /boot ; then
+            echo "Failed to mount /boot"
+            exit 1
+          else
+            echo "SUCCESS"
+          fi
+        fi
+      HEREDOC
+  register: mount_var
+  chenged_when: mount_dev.stdout == "SUCCESS"
+
+- name: 'Fix /etc/fstab to use zfs filesystem as /'
+  lineinfile: 
+    path: /etc/fstab
+    regexp: '[^ ]+[ ]+/[ ]+[a-zA-Z0-9]+[ ]+[a-zA-Z0-9]+([ ]+.*)'
+    line: 'pool/ROOT/fedora   /   zfs   noatime\1'
+    backrefs: true
+
+- name: Checking /etc/fstab has been updated
+  lineinfile: 
+    dest: /etc/fstab
+    regexp: "^.*pool/ROOT/fedora.*$"
+    line: "REPLACED STRING INDICATES SUCCESS"
+  check_mode: yes
+  register: presence
+  failed_when: not presence.changed
+
+- name: 'Rebuild /boot/grub2/grub.cfg in chroot to use zfs filesystem'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        if grep "root=ZFS=pool/ROOT/fedora" /boot/grub2/grub.cfg ; then
+          echo "/boot/grub2/grub.cfg already configured"
+        else
+          /usr/sbin/grub2-mkconfig | tee /boot/grub2/grub.cfg
+          echo "/boot/grub2/grub.cfg configured for ZFS"
+        fi
+        if ! grep "root=ZFS=pool/ROOT/fedora" /boot/grub2/grub.cfg ; then
+          echo "Failed to configure boot/grub2/grub.cfg"
+          exit 1
+        fi
+      HEREDOC
+
+

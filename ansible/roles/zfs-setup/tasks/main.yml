@@ -230,3 +230,48 @@
       HEREDOC
 
 
+- name: 'Recreate the initram image'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        rm -f /boot/initramfs-`uname -r`.img
+        dracut -fv --kver `uname -r`
+        if [[ -e /boot/initramfs-`uname -r`.img ]]; then
+          echo "SUCCESS"
+        else
+          echo "FAIL"
+          exit 1
+        fi
+      HEREDOC
+  register: initram_var
+  chenged_when: initram_dev.stdout == "SUCCESS"
+
+- name: 'Unmount all of the scaffolding mounts in chroot'
+  shell: 
+    cmd: |
+      chroot /sysroot /bin/bash <<HEREDOC
+        if ! mountpoint {{ item }}; then
+          echo "{{ item }} already unmounted"
+        else
+          umount {{ item }}
+          echo "{{ item }} unmounted"
+          if mountpoint {{ item }}; then
+            echo "Failed to unmount {{ item }}"
+            exit 1
+          else
+            echo "SUCCESS"
+          fi
+        fi
+      HEREDOC
+  register: unmount_var
+  chenged_when: unmount_dev.stdout == "SUCCESS"
+  with_items:
+    - '/boot'
+    - '/sys'
+    - '/proc'
+    - '/dev'
+
+
+- name: 'Export the zfs pool one last time'
+  shell: zpool export pool
+

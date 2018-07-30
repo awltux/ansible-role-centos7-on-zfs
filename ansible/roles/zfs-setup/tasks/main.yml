@@ -1,6 +1,8 @@
 ---
 # Most of the information for this role comes from:
 #   https://rudd-o.com/linux-and-free-software/installing-fedora-on-top-of-zfs
+#   https://www.csparks.com/BootFedoraZFS/index.md
+
 - name: 'Identify the rpm distribution'
   shell: rpm -E %dist
   args:
@@ -60,6 +62,12 @@
     name: '{{ rpm_path_find.files[0].path }}'
     state: present
 
+- name: 'Create the /sysroot directory'
+  file:
+    path: /sysroot
+    state: directory
+    mode: 0755
+
 - name: 'Load metadata about partition on /dev/sda'
   parted:
     device: /dev/sda
@@ -118,6 +126,22 @@
   shell: zfs set mountpoint=/ pool/ROOT/fedora
   when: zfs_sysroot_count.stdout == '0'
 
+- name: 'Set selinux to permissive'
+  shell: |
+    if sestatus | grep "Current mode:" | grep "permissive" ; then
+      echo "SELinux already in permissive mode"
+    else
+      setenforce Permissive
+      if ! (sestatus | grep "Current mode:" | grep "permissive" ) ; then
+        echo "Failed to set SELinux to permissive mode"
+        exit 1
+      else 
+        echo "SUCCESS"
+      fi
+    fi
+  register: selinux_var
+  changed_when: selinux_var.stdout == "SUCCESS"
+
 - name: 'Copy the existing fs into /sysroot'
   shell: rsync --exclude=/sys -axvHASX / /sysroot/
 
@@ -135,7 +159,7 @@
       fi
     fi
   register: mount_var
-  chenged_when: mount_dev.stdout == "SUCCESS"
+  changed_when: mount_dev.stdout == "SUCCESS"
 
 - name: 'Create /proc mount in chroot'
   shell: 
@@ -155,7 +179,7 @@
         fi
       HEREDOC
   register: mount_var
-  chenged_when: mount_dev.stdout == "SUCCESS"
+  changed_when: mount_var.stdout == "SUCCESS"
   
 - name: 'Create /sys mount in chroot'
   shell: 
@@ -175,7 +199,7 @@
         fi
       HEREDOC
   register: mount_var
-  chenged_when: mount_dev.stdout == "SUCCESS"
+  changed_when: mount_var.stdout == "SUCCESS"
   
 - name: 'Create /boot mount in chroot using fstab entry'
   shell: 
@@ -195,7 +219,7 @@
         fi
       HEREDOC
   register: mount_var
-  chenged_when: mount_dev.stdout == "SUCCESS"
+  changed_when: mount_var.stdout == "SUCCESS"
 
 - name: 'Fix /etc/fstab to use zfs filesystem as /'
   lineinfile: 
@@ -244,7 +268,7 @@
         fi
       HEREDOC
   register: initram_var
-  chenged_when: initram_dev.stdout == "SUCCESS"
+  changed_when: initram_var.stdout == "SUCCESS"
 
 - name: 'Unmount all of the scaffolding mounts in chroot'
   shell: 
@@ -264,7 +288,7 @@
         fi
       HEREDOC
   register: unmount_var
-  chenged_when: unmount_dev.stdout == "SUCCESS"
+  changed_when: unmount_var.stdout == "SUCCESS"
   with_items:
     - '/boot'
     - '/sys'

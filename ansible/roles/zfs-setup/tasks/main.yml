@@ -2,6 +2,18 @@
 # Most of the information for this role comes from:
 #   https://www.csparks.com/BootFedoraZFS/index.md
 
+- name: 'Identify the rpm distribution'
+  shell: rpm -E %dist
+  args:
+    warn: no
+  register: rpm_dist
+  changed_when: false
+
+- name: 'Install repo details for zfs'
+  dnf:
+    name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+    disable_gpg_check: yes
+
 - name: Install additional package dependencies
   dnf:
     name: libselinux-python, grub2-efi-x64-modules, gdisk, kernel-devel, zfs, zfs-dracut
@@ -76,18 +88,6 @@
     src: "/usr/local/sbin/zmogrify"
     dest: "/etc/kernel/postinst.d/zmogrify"
     state: link
-
-- name: 'Identify the rpm distribution'
-  shell: rpm -E %dist
-  args:
-    warn: no
-  register: rpm_dist
-  changed_when: false
-
-- name: 'Install repo details for zfs'
-  dnf:
-    name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
-    disable_gpg_check: yes
 
 - name: 'Check if zfs module will load during reboot'
   stat:

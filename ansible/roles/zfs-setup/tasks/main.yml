@@ -1,7 +1,67 @@
 ---
 # Most of the information for this role comes from:
-#   https://rudd-o.com/linux-and-free-software/installing-fedora-on-top-of-zfs
 #   https://www.csparks.com/BootFedoraZFS/index.md
+
+- name: upgrade all packages
+  dnf:
+    name: "*"
+    state: latest
+
+- name: Install additional package dependencies
+  dnf:
+    name: libselinux-python
+ 
+- name: Set SELinux to permissive in current session
+  shell: setenforce 0
+
+- name: Set SELinux to permissive after reboot
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: 'SELINUX=permissive'
+    
+- name: Is grub2-efi rpm installed?
+  shell: rpm -qa | grep grub2-efi
+  register: rpm_list
+
+- name: Conditionally do next thing
+  fail:
+    msg: "System should be using EFI"
+  when: rpm_list.stdout_lines|length == 0
+
+- name: Copy zmogrify onto system
+  copy:
+    src: "{{ role_path }}/files/zmogrify"
+    dest: /usr/local/sbin/
+    mode: u=rwx,g=rx,o=rx
+
+- name: Copy zenter onto system
+  copy:
+    src: "{{ role_path }}/files/zenter"
+    dest: /usr/local/sbin/
+    mode: u=rwx,g=rx,o=rx
+
+- name: 
+  lineinfile:
+    path: /etc/default/grub
+    regexp: '{{ item.name }}'
+    line: '{{ item.name }}={{ item.value  }}'
+  with_items:
+    - { name: 'GRUB_PRELOAD_MODULES', value:   '\"zfs\"' }
+    - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
+
+- name: 'Ensure zfs module is loaded during boot sequence'
+  blockinfile:
+    path: /etc/profile.d/grub2_zpool_fix.sh
+    create: yes
+    block: |
+      export ZPOOL_VDEV_NAME_PATH=YES
+
+- name: Create symbolic link 
+  file:
+    src: "/usr/local/sbin/zmogrify"
+    dest: "/etc/kernel/postinst.d/zmogrify"
+    state: link
 
 - name: 'Identify the rpm distribution'
   shell: rpm -E %dist
@@ -15,11 +75,11 @@
     disable_gpg_check: yes
 
 - name: 'Install zfs package'
-  dnf: 
-    name: 'kernel-devel, zfs, libselinux-python, rpm-build, expect'
+  dnf:
+    name: 'kernel-devel, zfs, zfs-dracut'
 
 - name: 'Check if zfs module will load during reboot'
-  stat: 
+  stat:
     path: /etc/modules-load.d/zfs.conf
   register: zfs_module_loading
   no_log: true
@@ -38,264 +98,33 @@
       # Load zfs kernel module
       zfs
 
-- name: 'clone repo containing grub-zfs-fixer rpm source'
-  git:
-     repo: '{{ repo_url }}'
-     dest: '{{ repo_dir }}'
+- name: Disable the import cache as it can cause problems as zfs pool changes
+  service:
+    name: zfs-import-cache
+    enabled: no
 
-- name: 'Create SRPM grub-zfs-fixer.tar.gz file'
-  archive:
-    path: '{{ repo_dir }}/grub-zfs-fixer'
-    dest: '{{ common_target_dir }}/grub-zfs-fixer.tar.gz'
-    
-- name: 'Create the RPM from grub-zfs-fixer.tar.gz'
-  shell: 'rpmbuild -ta {{ common_target_dir }}/grub-zfs-fixer.tar.gz'
+- name: Enable the import-scan to scan devices 
+  service:
+    name: zfs-import-scan
+    enabled: yes
 
-- name: 'Find location of RPM'
-  find:
-    paths: '/root/rpmbuild/RPMS/noarch'
-    patterns: 'grub-zfs-fixer*'
-  register: rpm_path_find
-
-- name: 'Install the RPM created from grub-zfs-fixer.tar.gz'
-  dnf: 
-    name: '{{ rpm_path_find.files[0].path }}'
-    state: present
-
-- name: 'Create the /sysroot directory'
+- name: Delete zfs cache file
   file:
-    path: /sysroot
-    state: directory
-    mode: 0755
+    state: absent
+    path: "/etc/zfs/zpool.cache"
 
-- name: 'Load metadata about partition on /dev/sda'
-  parted:
-    device: /dev/sda
-    unit: MiB
-  register: sda_parted_info
+- name: rebuild the initramfs excluding the zpool cache
+  shell: dracut -fv --kver `uname -r`
 
-- name: 'Partition 5 (/dev/sda5) must be mounted as root'
-  shell: mount | grep '/dev/sda5 on / '
-  no_log: true
+- name: Get partition data
+  parted: 
+    device: '{{ target_device }}'
+    unit: 'MiB'
+  register: parted_data
 
-- name: 'Find count of zpools called pool'
-  shell: zpool list | grep ^pool | wc -l
-  register: zpool_list_count
-  
-- name: 'Create an inital pool to work with'
-  shell: zpool create pool -m none -o ashift=12 /dev/sda4
-  when: zpool_list_count.stdout == '0'
-  
-- name: 'Find count of pool/ROOT/fedora/home filesystem'
-  shell: zfs list | grep pool/ROOT/fedora/home | wc -l 
-  register: zfs_list_count
-  
-- name: 'Create an inital filesystem for fedora'
-  shell: zfs create -p pool/ROOT/fedora/{{ item }}
-  with_items:
-    - home
-    - var
-  when: zfs_list_count.stdout == '0'
+- name: Check that disk has no partitions before assigning some
+  fail:
+    msg: 'The target device {{ target_device }} has {{ partition_data }} partitions'
+  when: parted_data.partitions|length != 0
 
-- name: 'Turn compression on for zfs pool'
-  shell: zfs set compression=on pool
-  
-- name: 'Disable Access Time recording for zfs pool to improve responsiveness'
-  shell: zfs set atime=off pool
-
-- name: 'Allow acl properties to be applied during rsync'
-  shell: zfs set aclinherit=passthrough pool
-
-- name: 'Is zpool located under /sysroot'
-  shell: zpool list | grep ^pool.*/sysroot$ | wc -l
-  register: zpool_sysroot_count
-  
-- name: 'Export zfs pool to allow mountpoint to be modified'
-  shell: zpool export pool
-  when: zpool_sysroot_count.stdout == '0'
-
-- name: 'Import zfs pool under /sysroot '
-  shell: zpool import -o altroot=/sysroot pool
-  when: zpool_sysroot_count.stdout == '0'
-
-- name: 'Is zfs filesystem mounted under /sysroot'
-  shell: zfs list | grep ^pool/ROOT/fedora.*/sysroot$ | wc -l
-  register: zfs_sysroot_count
-  
-- name: 'Set the mountpoint for zfs root filesystem'
-  shell: zfs set mountpoint=/ pool/ROOT/fedora
-  when: zfs_sysroot_count.stdout == '0'
-
-- name: 'Set selinux to permissive'
-  shell: |
-    if sestatus | grep "Current mode:" | grep "permissive" ; then
-      echo "SELinux already in permissive mode"
-    else
-      setenforce Permissive
-      if ! (sestatus | grep "Current mode:" | grep "permissive" ) ; then
-        echo "Failed to set SELinux to permissive mode"
-        exit 1
-      else 
-        echo "SUCCESS"
-      fi
-    fi
-  register: selinux_var
-  changed_when: selinux_var.stdout == "SUCCESS"
-
-- name: 'Copy the existing fs into /sysroot'
-  shell: rsync --exclude=/sys -axvHASX / /sysroot/
-
-- name: 'Bind mount /dev into chroot /sysroot/dev'
-  shell: |
-    if mountpoint /sysroot/dev ; then
-      echo "/sysroot/dev already mounted"
-    else
-      mount --bind /dev /sysroot/dev
-      if ! mountpoint /sysroot/dev ; then
-        echo "Failed to mount /sysroot/dev"
-        exit 1
-      else
-        echo "SUCCESS"
-      fi
-    fi
-  register: mount_var
-  changed_when: mount_dev.stdout == "SUCCESS"
-
-- name: 'Create /proc mount in chroot'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        if mountpoint /proc ; then
-          echo "/proc already mounted"
-        else
-          mount -t proc none /proc
-          echo "/proc mounted"
-          if ! mountpoint /proc ; then
-            echo "Failed to mount /proc"
-            exit 1
-          else
-            echo "SUCCESS"
-          fi
-        fi
-      HEREDOC
-  register: mount_var
-  changed_when: mount_var.stdout == "SUCCESS"
-  
-- name: 'Create /sys mount in chroot'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        if mountpoint /sys ; then
-          echo "/sys already mounted"
-        else
-          mount -t sysfs none /sys
-          echo "/sys mounted"
-          if ! mountpoint /sys ; then
-            echo "Failed to mount /sys"
-            exit 1
-          else
-            echo "SUCCESS"
-          fi
-        fi
-      HEREDOC
-  register: mount_var
-  changed_when: mount_var.stdout == "SUCCESS"
-  
-- name: 'Create /boot mount in chroot using fstab entry'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        if mountpoint /boot ; then
-          echo "/boot already mounted"
-        else
-          mount /boot
-          echo "/boot mounted"
-          if ! mountpoint /boot ; then
-            echo "Failed to mount /boot"
-            exit 1
-          else
-            echo "SUCCESS"
-          fi
-        fi
-      HEREDOC
-  register: mount_var
-  changed_when: mount_var.stdout == "SUCCESS"
-
-- name: 'Fix /etc/fstab to use zfs filesystem as /'
-  lineinfile: 
-    path: /etc/fstab
-    regexp: '[^ ]+[ ]+/[ ]+[a-zA-Z0-9]+[ ]+[a-zA-Z0-9]+([ ]+.*)'
-    line: 'pool/ROOT/fedora   /   zfs   noatime\1'
-    backrefs: true
-
-- name: Checking /etc/fstab has been updated
-  lineinfile: 
-    dest: /etc/fstab
-    regexp: "^.*pool/ROOT/fedora.*$"
-    line: "REPLACED STRING INDICATES SUCCESS"
-  check_mode: yes
-  register: presence
-  failed_when: not presence.changed
-
-- name: 'Rebuild /boot/grub2/grub.cfg in chroot to use zfs filesystem'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        if grep "root=ZFS=pool/ROOT/fedora" /boot/grub2/grub.cfg ; then
-          echo "/boot/grub2/grub.cfg already configured"
-        else
-          /usr/sbin/grub2-mkconfig | tee /boot/grub2/grub.cfg
-          echo "/boot/grub2/grub.cfg configured for ZFS"
-        fi
-        if ! grep "root=ZFS=pool/ROOT/fedora" /boot/grub2/grub.cfg ; then
-          echo "Failed to configure boot/grub2/grub.cfg"
-          exit 1
-        fi
-      HEREDOC
-
-
-- name: 'Recreate the initram image'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        rm -f /boot/initramfs-`uname -r`.img
-        dracut -fv --kver `uname -r`
-        if [[ -e /boot/initramfs-`uname -r`.img ]]; then
-          echo "SUCCESS"
-        else
-          echo "FAIL"
-          exit 1
-        fi
-      HEREDOC
-  register: initram_var
-  changed_when: initram_var.stdout == "SUCCESS"
-
-- name: 'Unmount all of the scaffolding mounts in chroot'
-  shell: 
-    cmd: |
-      chroot /sysroot /bin/bash <<HEREDOC
-        if ! mountpoint {{ item }}; then
-          echo "{{ item }} already unmounted"
-        else
-          umount {{ item }}
-          echo "{{ item }} unmounted"
-          if mountpoint {{ item }}; then
-            echo "Failed to unmount {{ item }}"
-            exit 1
-          else
-            echo "SUCCESS"
-          fi
-        fi
-      HEREDOC
-  register: unmount_var
-  changed_when: unmount_var.stdout == "SUCCESS"
-  with_items:
-    - '/boot'
-    - '/sys'
-    - '/proc'
-    - '/dev'
-
-
-- name: 'Export the zfs pool one last time'
-  shell: zpool export pool
 

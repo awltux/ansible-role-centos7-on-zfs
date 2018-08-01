@@ -1,0 +1,29 @@
+#!/bin/bash -e
+# zenter - Mount system directories and enter a chroot
+
+# The mount point for the chroot
+target=$1
+
+# Mount the essential drives
+mount -t proc  none $target/proc
+mount -t sysfs none $target/sys
+mount -o bind /dev $target/dev
+mount -o bind /dev/pts $target/dev/pts
+
+
+chroot $target \
+    /bin/env                `# Run command with specific enironment variables` \
+    --ignore-environment    `# ignore variable in current context`\
+    HOME=/root              `# Set home` \
+    TERM="$TERM"            `# Use current TERM` \
+    PS1='[\u@chroot \W]\$ ' `# Set the command prompt to hghlight chroot context` \
+    PATH=/bin:/usr/bin:/sbin:/usr/sbin:/bin `# Set a basic path` \
+    /bin/bash --login       `# Open a console in the chroot and run commands piped to it`
+
+echo "Exiting chroot environment..."
+
+# Unmount the drives in reverse order
+umount $target/dev/pts
+umount $target/dev/
+umount $target/sys/
+umount $target/proc/

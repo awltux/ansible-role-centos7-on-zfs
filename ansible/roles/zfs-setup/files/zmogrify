@@ -1,0 +1,25 @@
+#!/bin/bash -e
+# zmogrify - Run dracut and configure grub to boot with root on zfs.
+
+# Get the kernel release string
+kver=${1:-"$(uname -r)"}
+
+# Recreate the initramfs for this kernel
+sh -x /usr/bin/dracut -fv --kver $kver
+
+# Mount efi boot partition using entry in /etc/fstab
+mount /boot/efi
+
+# Rebuild the grub config
+grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
+
+# Set grub boot menu item 0 as the default
+grubby --set-default-index 0
+
+# Copy the zfs grub modules from the grub install into the efi boot partition
+mkdir -p /boot/efi/EFI/fedora/x86_64-efi
+cp -a /usr/lib/grub/x86_64-efi/zfs* /boot/efi/EFI/fedora/x86_64-efi
+
+# Finished with efi parition
+umount /boot/efi
+

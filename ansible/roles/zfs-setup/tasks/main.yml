@@ -20,8 +20,10 @@
     regexp: '^SELINUX='
     line: 'SELINUX=permissive'
     
-- name: Is grub2-efi rpm installed?
+- name: Is this system using the EFI boot loader?
   shell: rpm -qa | grep grub2-efi
+  args:
+    warn: no
   register: rpm_list
 
 - name: Conditionally do next thing
@@ -116,6 +118,10 @@
 - name: rebuild the initramfs excluding the zpool cache
   shell: dracut -fv --kver `uname -r`
 
+- name: 'Install gdisk package'
+  dnf:
+    name: 'gdisk'
+
 - name: Get partition data
   parted: 
     device: '{{ target_device }}'
@@ -124,7 +130,69 @@
 
 - name: Check that disk has no partitions before assigning some
   fail:
-    msg: 'The target device {{ target_device }} has {{ partition_data }} partitions'
+    msg: 'Clean target device {{ target_device }}: sgdisk -Z {{ target_device }}'
   when: parted_data.partitions|length != 0
+
+- name: 'Create bootable zfs drive on {{ target_device }}'
+  shell: |
+    # Zap the disk
+    sgdisk -Z {{ target_device }}
+    
+    # Create an efi boot partition
+    sgdisk -n 0:0:+200M -t 0:ef00 -c 0:"efi_boot" {{ target_device }}
+    # Create a zpool partition on the rest of the disk
+    sgdisk -n 0:0:0 -t 0:8300 -c 0:"zfs_pool" {{ target_device }} 
+
+    # inform the OS of partition table changes
+    partprobe /dev/sdb
+  
+- name: 'Formatting efi boot drive on {{ target_device }}'
+  shell: mkfs.fat -F32 {{ target_device }}1
+
+- name: Create a zpool on zpool_disk
+  shell: |
+    # Create a zpool called pool on partition 2 
+    # aligned to 2^12 (2048) sectors
+    zpool create pool -m none {{ target_device }}2 -o ashift=12
+    zfs set compression=on pool
+    zfs set atime=off pool
+
+    # Create a dataset on zpool called pool
+    zfs create -p pool/ROOT/fedora
+    # Store extended data directly in inodes
+    zfs set xattr=sa pool/ROOT/fedora
+
+    # Allows copying fedora OS journal files 
+    zfs set acltype=posixacl pool/ROOT/fedora
+
+    # export/import the zpool on an alternative directory
+    # This gives flexability of what will be mounted on /
+    zpool export pool
+    zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+
+    # Mount fedora dataset onto /sysroot/
+    zfs set mountpoint=/ pool/ROOT/fedora
+  
+
+- name: Copy the current fedora install on sdb drive onto the zfs mount
+  shell: rsync --exclude=/sys -avxHASX / /sysroot/
+
+- name: Initialise Boot files on efi_boot partition
+  shell: | 
+    cd ~
+    mkdir efi_partion_mount
+    mount {{ target_device }}1 efi_partion_mount
+    cp -a /boot/efi/* efi_partion_mount
+    umount efi_partion_mount
+    rmdir efi_partion_mount
+
+    echo "UUID=$( blkid {{ target_device }}1 )    /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
+
+- name: Allow Fedora:28+ to boot into zfs
+  shell: |
+    DISK_ID=$( zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 )
+    echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
+
+    zenter /sysroot <<< zmogrify
 
 

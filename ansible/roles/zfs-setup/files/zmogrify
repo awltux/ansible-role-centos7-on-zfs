@@ -16,10 +16,31 @@ umount_boot_efi() {
 
 setup_boot_efi() {
   # Get the kernel release string
-  kver=${1:-"$(uname -r)"}
+  local installedKernel=$(ls /boot/vmlinuz*x86_64 | cut -d'-' -f2-)
+  local runningKernel=$(uname -r)
+  local zver 
+
+  if [[ "${installedKernel}" != "${runningKernel}" ]]; then
+    # zfs and spl modules need rebuilt
+    zver=$(rpm -q zfs | cut -d'-' -f2)
+    
+    dkms install -m spl -v ${zver} -k ${installedKernel}
+    dkms install -m zfs -v ${zver} -k ${installedKernel}
+
+  fi 
 
   # Recreate the initramfs for this kernel
-  sh -x /usr/bin/dracut -fv --kver $kver
+  sh -x /usr/bin/dracut -fv --kver $installedKernel
+
+  if ! -e /boot/initramfs-${installedKernel}.img; then
+    echo "Missing file: /boot/initramfs-${installedKernel}.img"
+    exit 1
+  fi
+  
+  if ! (lsinitrd -k ${installedKernel} | grep "zfs.ko"); then
+    echo "Installed initramfs doesnt contain zfs.ko"
+    exit 1
+  fi
 
   mount_boot_efi
 
@@ -29,7 +50,12 @@ setup_boot_efi() {
   # Set grub boot menu item 0 as the default
   grubby --set-default-index 0
 
-  # Copy the zfs grub modules from the grub install into the efi boot partition
+  if ! grep "${installedKernel}" /boot/efi/EFI/fedora/grub.cfg; then
+    echo "Installed Kernel not mentioned in grub.cfg"
+    exit 1
+  fi
+
+  # Copy the zfs grub modules from the os filesystem into the efi boot partition
   mkdir -p /boot/efi/EFI/fedora/x86_64-efi
   cp -a /usr/lib/grub/x86_64-efi/zfs* /boot/efi/EFI/fedora/x86_64-efi
 }

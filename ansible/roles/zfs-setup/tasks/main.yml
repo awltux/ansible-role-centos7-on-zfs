@@ -9,7 +9,7 @@
 
 - name: Install additional package dependencies
   dnf:
-    name: libselinux-python
+    name: libselinux-python, grub2-efi-x64-modules
  
 - name: Set SELinux to permissive in current session
   shell: setenforce 0
@@ -143,9 +143,13 @@
     sgdisk -Z {{ target_device }}
     
     # Create an efi boot partition
-    sgdisk -n 0:0:+200M -t 0:ef00 -c 0:"efi_boot"  --mbrtogpt {{ target_device }}
+    sgdisk -n 1:0:+200M -t 1:ef00 -c 1:"efi_boot"  {{ target_device }}
+
+    # Ensure the boot partition is GPT    
+    sgdisk -g {{ target_device }}1
+
     # Create a zpool partition on the rest of the disk
-    sgdisk -n 0:0:0 -t 0:8300 -c 0:"zfs_pool" {{ target_device }} 
+    sgdisk -n 2:0:0 -t 2:8300 -c 2:"zfs_pool" {{ target_device }} 
 
     # inform the OS of partition table changes
     partprobe /dev/sdb
@@ -177,22 +181,23 @@
     # Mount fedora dataset onto /sysroot/
     zfs set mountpoint=/ pool/ROOT/fedora-28
   
-- name: Copy the current fedora install on sdb drive onto the zfs mount
+- name: Copy the installed fedora from local drive to the zfs mount
   shell: rsync --exclude=/proc/* --exclude=/sys/* --exclude=/dev/*  -avxHASX / /sysroot/
 
 - name: Initialise Boot files on efi_boot partition
   shell: | 
+    
+    # Copy local /boot/efi files onto zfs  boot partition
     cd ~
-    mkdir efi_partion_mount
-    mount {{ target_device }}1 efi_partion_mount
-    cp -a /boot/efi/* efi_partion_mount
-    umount efi_partion_mount
-    rmdir efi_partion_mount
+    mkdir efi_mount
+    mount {{ target_device }}1 efi_mount
+    cp -a /boot/efi/* efi_mount
+    umount efi_mount
+    rmdir efi_mount
 
+    # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ target_device }}1  -o value | head -1 )
-    BLK_NAME=$( blkid {{ target_device }}1  -o value | head -3 | tail -1 )
-
-    echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=${BLK_NAME} 0 2" > /sysroot/etc/fstab
+    echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |

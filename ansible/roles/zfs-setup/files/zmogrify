@@ -32,7 +32,7 @@ setup_boot_efi() {
   # Recreate the initramfs for this kernel
   sh -x /usr/bin/dracut -fv --kver $installedKernel
 
-  if ! -e /boot/initramfs-${installedKernel}.img; then
+  if ! [[ -e /boot/initramfs-${installedKernel}.img ]]; then
     echo "Missing file: /boot/initramfs-${installedKernel}.img"
     exit 1
   fi

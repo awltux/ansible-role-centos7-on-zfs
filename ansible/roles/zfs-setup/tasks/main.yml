@@ -189,7 +189,10 @@
     umount efi_partion_mount
     rmdir efi_partion_mount
 
-    echo "UUID=$( blkid {{ target_device }}1 )    /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
+    BLK_ID=$( blkid {{ target_device }}1  -o value | head -1 )
+    BLK_NAME=$( blkid {{ target_device }}1  -o value | head -3 | tail -1 )
+
+    echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=${BLK_NAME} 0 2" > /sysroot/etc/fstab
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |

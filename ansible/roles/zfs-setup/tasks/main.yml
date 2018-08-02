@@ -143,7 +143,7 @@
     sgdisk -Z {{ target_device }}
     
     # Create an efi boot partition
-    sgdisk -n 0:0:+200M -t 0:ef00 -c 0:"efi_boot" {{ target_device }}
+    sgdisk -n 0:0:+200M -t 0:ef00 -c 0:"efi_boot"  --mbrtogpt {{ target_device }}
     # Create a zpool partition on the rest of the disk
     sgdisk -n 0:0:0 -t 0:8300 -c 0:"zfs_pool" {{ target_device }} 
 

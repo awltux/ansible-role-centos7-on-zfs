@@ -129,8 +129,12 @@
   register: parted_data
 
 - name: Check that disk has no partitions before assigning some
+  vars:  
+    msg_string: |
+      # Clean target device 
+      sudo zfs umount /sysroot && sudo zpool destroy -f pool && sudo sgdisk -Z {{ target_device }}'
   fail:
-    msg: 'Clean target device::   sudo zpool destroy -f pool; sudo sgdisk -Z {{ target_device }}'
+    msg: "{{ msg_string.split('\n')[:-1] }}"
   when: parted_data.partitions|length != 0
 
 - name: 'Create bootable zfs drive on {{ target_device }}'
@@ -173,9 +177,8 @@
     # Mount fedora dataset onto /sysroot/
     zfs set mountpoint=/ pool/ROOT/fedora-28
   
-
 - name: Copy the current fedora install on sdb drive onto the zfs mount
-  shell: rsync --exclude=/sys -avxHASX / /sysroot/
+  shell: rsync --exclude=/proc/* --exclude=/sys/* --exclude=/dev/*  -avxHASX / /sysroot/
 
 - name: Initialise Boot files on efi_boot partition
   shell: | 
@@ -193,6 +196,7 @@
     DISK_ID=$( zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 )
     echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
 
-    zenter /sysroot <<< zmogrify
+- name: Setup the /sysroot to as zfs boot system
+  shell:  zenter /sysroot <<< zmogrify
 
 

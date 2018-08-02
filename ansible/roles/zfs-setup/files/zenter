@@ -1,17 +1,33 @@
 #!/bin/bash -e
 # zenter - Mount system directories and enter a chroot
 
-# The mount point for the chroot
-target=${1:-"$(uname -r)"}
 
-# Mount the essential drives
-mount -t proc  none $target/proc
-mount -t sysfs none $target/sys
-mount -o bind /dev $target/dev
-mount -o bind /dev/pts $target/dev/pts
+unmount_all() {
+  # Alway attempt to unmount the drives in reverse order
+  umount $target/dev/pts | echo "Unmounted $target/dev/pts"
+  umount $target/dev/ | echo "Unmounted $target/dev/"
+  umount $target/sys/ | echo "Unmounted $target/sys/"
+  umount $target/proc/ | echo "Unmounted $target/proc/"
+}
 
+mount_all() {
+  # Mount the essential drives
+  mount -t proc  proc $target/proc
+  mount -t sysfs sys $target/sys
+  mount -o bind /dev $target/dev
+  mount -o bind /dev/pts $target/dev/pts
 
-chroot $target \
+  trap unmount_all EXIT
+}
+
+run_piped_commands_in_chroot() {
+
+  # The mount point for the chroot
+  target=${1:-"/sysroot"}
+
+  mount_all ${target}
+
+  chroot $target \
     /bin/env                `# Run command with specific enironment variables` \
     --ignore-environment    `# ignore variable in current context`\
     HOME=/root              `# Set home` \
@@ -20,10 +36,8 @@ chroot $target \
     PATH=/bin:/usr/bin:/sbin:/usr/sbin:/bin `# Set a basic path` \
     /bin/bash --login       `# Open a console in the chroot and run commands piped to it`
 
-echo "Exiting chroot environment..."
+  echo "Exiting chroot environment..."
+}
 
-# Unmount the drives in reverse order
-umount $target/dev/pts
-umount $target/dev/
-umount $target/sys/
-umount $target/proc/
+run_piped_commands_in_chroot "$@"
+

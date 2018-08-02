@@ -15,10 +15,18 @@ umount_boot_efi() {
 }
 
 setup_boot_efi() {
-  # Get the kernel release string
+  # After an update, but before a reboot, the running 
+  # kernel version can be older than the installed kernel version
   local installedKernel=$(ls /boot/vmlinuz*x86_64 | cut -d'-' -f2-)
   local runningKernel=$(uname -r)
   local zver 
+
+  if [[ -z "${installedKernel}" ]] || [[ -z "${runningKernel}" ]]; then
+    echo "Unable to find Kernel Versions:"
+    echo "    installedKernel=${installedKernel}"
+    echo "    runningKernel=${runningKernel}"
+    exit 1
+  fi
 
   if [[ "${installedKernel}" != "${runningKernel}" ]]; then
     # zfs and spl modules need rebuilt
@@ -30,7 +38,7 @@ setup_boot_efi() {
   fi 
 
   # Recreate the initramfs for this kernel
-  sh -x /usr/bin/dracut -fv --kver $installedKernel
+  sh -x /usr/bin/dracut -fv --kver ${installedKernel}
 
   if ! [[ -e /boot/initramfs-${installedKernel}.img ]]; then
     echo "Missing file: /boot/initramfs-${installedKernel}.img"

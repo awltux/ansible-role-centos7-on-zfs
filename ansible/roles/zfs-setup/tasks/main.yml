@@ -204,7 +204,7 @@
     DISK_ID=$( zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 )
     echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
 
-- name: Setup the /sysroot to as zfs boot system
+- name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
 
 

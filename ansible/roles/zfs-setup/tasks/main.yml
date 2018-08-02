@@ -59,7 +59,7 @@
     block: |
       export ZPOOL_VDEV_NAME_PATH=YES
 
-- name: Create symbolic link 
+- name: Kernel upgrades need to fix zfs drivers 
   file:
     src: "/usr/local/sbin/zmogrify"
     dest: "/etc/kernel/postinst.d/zmogrify"
@@ -110,7 +110,7 @@
     name: zfs-import-scan
     enabled: yes
 
-- name: Delete zfs cache file
+- name: Delete unused zfs cache file
   file:
     state: absent
     path: "/etc/zfs/zpool.cache"
@@ -130,7 +130,7 @@
 
 - name: Check that disk has no partitions before assigning some
   fail:
-    msg: 'Clean target device {{ target_device }}: sgdisk -Z {{ target_device }}'
+    msg: 'Clean target device::   sudo zpool destroy -f pool; sudo sgdisk -Z {{ target_device }}'
   when: parted_data.partitions|length != 0
 
 - name: 'Create bootable zfs drive on {{ target_device }}'
@@ -158,12 +158,12 @@
     zfs set atime=off pool
 
     # Create a dataset on zpool called pool
-    zfs create -p pool/ROOT/fedora
+    zfs create -p pool/ROOT/fedora-28
     # Store extended data directly in inodes
-    zfs set xattr=sa pool/ROOT/fedora
+    zfs set xattr=sa pool/ROOT/fedora-28
 
     # Allows copying fedora OS journal files 
-    zfs set acltype=posixacl pool/ROOT/fedora
+    zfs set acltype=posixacl pool/ROOT/fedora-28
 
     # export/import the zpool on an alternative directory
     # This gives flexability of what will be mounted on /
@@ -171,7 +171,7 @@
     zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
 
     # Mount fedora dataset onto /sysroot/
-    zfs set mountpoint=/ pool/ROOT/fedora
+    zfs set mountpoint=/ pool/ROOT/fedora-28
   
 
 - name: Copy the current fedora install on sdb drive onto the zfs mount

@@ -2,7 +2,7 @@
 # zenter - Mount system directories and enter a chroot
 
 # The mount point for the chroot
-target=$1
+target=${1:-"$(uname -r)"}
 
 # Mount the essential drives
 mount -t proc  none $target/proc

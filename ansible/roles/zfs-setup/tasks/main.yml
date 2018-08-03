@@ -35,11 +35,13 @@
   args:
     warn: no
   register: rpm_list
+  changed_when: false
 
 - name: Fail if system not configured to use EFI
   fail:
     msg: "System should be using EFI"
   when: rpm_list.stdout_lines|length == 0
+  changed_when: false
 
 - name: Copy zmogrify onto system
   copy:
@@ -80,6 +82,7 @@
   args:
     warn: no
   register: rpm_dist
+  changed_when: false
 
 - name: 'Install repo details for zfs'
   dnf:
@@ -91,6 +94,7 @@
     path: /etc/modules-load.d/zfs.conf
   register: zfs_module_loading
   no_log: true
+  changed_when: false
 
 - name: 'Load zfs module for this session'
   modprobe:
@@ -129,6 +133,7 @@
     device: '{{ target_device }}'
     unit: 'MiB'
   register: parted_data
+  changed_when: false
 
 - name: Check that disk has no partitions before assigning some
   vars:  
@@ -138,6 +143,7 @@
   fail:
     msg: "{{ msg_string.split('\n')[:-1] }}"
   when: parted_data.partitions|length != 0
+  changed_when: false
 
 - name: 'Create bootable zfs drive on {{ target_device }}'
   shell: |
@@ -215,4 +221,16 @@
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
 
-kernel-devel, zfs, zfs-dracut
+- name: Allow Fedora:28+ to boot into zfs
+  shell: |
+    BOOT_DISK_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
+    if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_DISK_ID};
+      echo "Boot disk missing: ${BOOT_DISK_ID}
+      exit 1
+    fi
+  changed_when: false
+
+- name: Reboot to ZFS goodness
+  debug:
+    msg: "All configuration has been done."
+  changed_when: false

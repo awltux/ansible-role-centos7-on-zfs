@@ -225,7 +225,7 @@
   shell: |
     BOOT_DISK_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
     if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_DISK_ID};
-      echo "Boot disk missing: ${BOOT_DISK_ID}
+      echo "Boot disk missing: ${BOOT_DISK_ID}"
       exit 1
     fi
   changed_when: false

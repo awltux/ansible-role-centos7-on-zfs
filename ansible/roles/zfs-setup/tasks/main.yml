@@ -2,15 +2,25 @@
 # Most of the information for this role comes from:
 #   https://www.csparks.com/BootFedoraZFS/index.md
 
+- name: Install additional package dependencies
+  dnf:
+    name: libselinux-python, grub2-efi-x64-modules, gdisk, kernel-devel, zfs, zfs-dracut
+ 
 - name: upgrade all packages
   dnf:
     name: "*"
     state: latest
 
-- name: Install additional package dependencies
-  dnf:
-    name: libselinux-python, grub2-efi-x64-modules
- 
+- name: Running and latest installed kernel must match
+  shell: |
+    installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sort | head -1 | sed "s:/boot/vmlinuz-::" )
+    runningKernel=$( uname -r )
+    if [[ "${installedKernel}" != "${runningKernel}" ]]; then
+      echo "UPDATED KERNEL REQUIRES REBOOT!"
+      exit 1
+    fi
+  changed_when: false
+
 - name: Set SELinux to permissive in current session
   shell: setenforce 0
 
@@ -20,13 +30,13 @@
     regexp: '^SELINUX='
     line: 'SELINUX=permissive'
     
-- name: Is this system using the EFI boot loader?
+- name: Are EFI packages installed?
   shell: rpm -qa | grep grub2-efi
   args:
     warn: no
   register: rpm_list
 
-- name: Conditionally do next thing
+- name: Fail if system not configured to use EFI
   fail:
     msg: "System should be using EFI"
   when: rpm_list.stdout_lines|length == 0
@@ -59,7 +69,7 @@
     block: |
       export ZPOOL_VDEV_NAME_PATH=YES
 
-- name: Kernel upgrades need to fix zfs drivers 
+- name: Kernel upgrades should trigger zfs driver rebuild 
   file:
     src: "/usr/local/sbin/zmogrify"
     dest: "/etc/kernel/postinst.d/zmogrify"
@@ -76,17 +86,13 @@
     name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
     disable_gpg_check: yes
 
-- name: 'Install zfs package'
-  dnf:
-    name: 'kernel-devel, zfs, zfs-dracut'
-
 - name: 'Check if zfs module will load during reboot'
   stat:
     path: /etc/modules-load.d/zfs.conf
   register: zfs_module_loading
   no_log: true
 
-- name: 'Load zfs module during first setup'
+- name: 'Load zfs module for this session'
   modprobe:
     name: zfs
     state: present
@@ -117,10 +123,6 @@
 
 - name: rebuild the initramfs excluding the zpool cache
   shell: dracut -fv --kver `uname -r`
-
-- name: 'Install gdisk package'
-  dnf:
-    name: 'gdisk'
 
 - name: Get partition data
   parted: 
@@ -195,6 +197,12 @@
     umount efi_mount
     rmdir efi_mount
 
+    # Remove old GPT entry for build hdd
+    efibootmgr -d {{ target_device }} -v -b 4 -B
+
+    # Create a new boot entry in GPT 
+    efibootmgr -d {{ target_device }} -v -c -l /EFI/fedora/shimx64.efi -L Fedora28
+
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ target_device }}1  -o value | head -1 )
     echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
@@ -207,4 +215,4 @@
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
 
-
+kernel-devel, zfs, zfs-dracut

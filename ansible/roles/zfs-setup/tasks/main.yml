@@ -178,7 +178,7 @@
     # Store extended data directly in inodes
     zfs set xattr=sa pool/ROOT/fedora-28
 
-    # Allows copying fedora OS journal files 
+    #zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 Allows copying fedora OS journal files 
     zfs set acltype=posixacl pool/ROOT/fedora-28
 
     # export/import the zpool on an alternative directory
@@ -221,11 +221,11 @@
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
 
-- name: Allow Fedora:28+ to boot into zfs
+- name: Check that boot partition has been set correctly
   shell: |
-    BOOT_DISK_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
-    if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_DISK_ID};
-      echo "Boot disk missing: ${BOOT_DISK_ID}"
+    BOOT_PARTITION_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
+    if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_PARTITION_ID}; then
+      echo "Boot disk missing: ${BOOT_PARTITION_ID}"
       exit 1
     fi
   changed_when: false

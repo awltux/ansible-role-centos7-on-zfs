@@ -179,12 +179,21 @@
 - name: Create a zpool called pool if not already done
   shell: |
     set -e   # prevent silent failures
+ 
     if ! zpool list | grep "^pool "; then
       # Create a zpool called pool on partition 2 
       # aligned to sector 2^12 (2048)
       zpool create pool -m none {{ target_device }}2 -o ashift=12
-      zfs set compression=on pool
       zfs set atime=off pool
+
+    # Grub failed to boot complaining that kernel needs to be loaded first. 
+    # Manually navigating to the kernel image in the grub console 
+    #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
+    #          error: compression algorithm inherit not supported
+    # NOTE: This has only been tested on VirtualBox so far
+    # Disabled this until problem can be identified
+    ##  zfs set compression=on pool
+    #UNTESTED#  zfs inherit compression pool
     fi
 
     if ! zfs list | grep "^pool/ROOT/fedora-28 "; then
@@ -195,6 +204,9 @@
 
       # Allows copying fedora OS journal files 
       zfs set acltype=posixacl pool/ROOT/fedora-28
+      
+      # Allow child datasets to inherit acltype attribute
+      zfs inherit acltype pool/ROOT/fedora-28
     fi
  
     if ! zfs list | grep "^pool/ROOT/fedora-28.*/sysroot"; then

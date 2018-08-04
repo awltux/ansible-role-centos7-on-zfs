@@ -206,7 +206,7 @@
       zfs set acltype=posixacl pool/ROOT/fedora-28
       
       # Allow child datasets to inherit acltype attribute
-      zfs inherit acltype pool/ROOT/fedora-28
+      # zfs inherit acltype pool/ROOT/fedora-28
     fi
  
     if ! zfs list | grep "^pool/ROOT/fedora-28.*/sysroot"; then
@@ -222,7 +222,13 @@
     fi
   
 - name: Copy the installed fedora from local drive to the zfs mount
-  shell: rsync --exclude=/proc --exclude=/sys --exclude=/dev  -avxHASX / /sysroot/
+  shell: |
+    set -e   # prevent silent failures
+
+    rsync --exclude=/proc --exclude=/sys --exclude=/dev  -avxHASX / /sysroot/
+    mkdir /sysroot/proc
+    mkdir /sysroot/sys
+    mkdir /sysroot/dev
 
 - name: Initialise Boot files on efi_boot partition
   shell: | 

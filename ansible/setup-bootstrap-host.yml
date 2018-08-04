@@ -4,6 +4,7 @@
   become: true
   vars:
     target_device: '/dev/sda'
+    second_disk: false
   roles:
     - { role: common }
 #    - { role: load-server-hardening }

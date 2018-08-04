@@ -17,27 +17,31 @@ umount_boot_efi() {
 setup_boot_efi() {
   # After an update, but before a reboot, the running 
   # kernel version can be older than the installed kernel version
-  local installedKernel=$(ls /boot/vmlinuz*x86_64 | cut -d'-' -f2-)
+  local installedKernel=$(ls -1 /boot/vmlinuz*x86_64 | sort | head -1 | cut -d'-' -f2-)
   local runningKernel=$(uname -r)
   local zver 
 
   if [[ -z "${installedKernel}" ]] || [[ -z "${runningKernel}" ]]; then
     echo "Unable to find Kernel Versions:"
     echo "    installedKernel=${installedKernel}"
-    echo "    runningKernel=${runningKernel}"
+    echo "      runningKernel=${runningKernel}"
     exit 1
   fi
 
+  # Kernel mismatch requires zfs and spl to be rebuilt
   if [[ "${installedKernel}" != "${runningKernel}" ]]; then
     # zfs and spl modules need rebuilt
     zver=$(rpm -q zfs | cut -d'-' -f2)
-    
+    if [[ -z "${zver}" ]] || "${zver}" ~= [0-9\.]+ ; then
+      echo "Invalid zfs version extracted from rpm: ${zver}"
+      exit 1
+    fi 
     dkms install -m spl -v ${zver} -k ${installedKernel}
     dkms install -m zfs -v ${zver} -k ${installedKernel}
 
   fi 
 
-  # Recreate the initramfs for this kernel
+  # Recreate the initramfs for the new kernel
   sh -x /usr/bin/dracut -fv --kver ${installedKernel}
 
   if ! [[ -e /boot/initramfs-${installedKernel}.img ]]; then
@@ -50,6 +54,7 @@ setup_boot_efi() {
     exit 1
   fi
 
+  # Need the /boot/efi mounted for whats next
   mount_boot_efi
 
   # Rebuild the grub config
@@ -63,9 +68,11 @@ setup_boot_efi() {
     exit 1
   fi
 
-  # Copy the zfs grub modules from the os filesystem into the efi boot partition
+  # Copy any updated zfs grub modules into efi boot partition
   mkdir -p /boot/efi/EFI/fedora/x86_64-efi
   cp -a /usr/lib/grub/x86_64-efi/zfs* /boot/efi/EFI/fedora/x86_64-efi
+
+  # SYS_EXIT will trigger trap which will run umount_boot_efi()
 }
 
 setup_boot_efi

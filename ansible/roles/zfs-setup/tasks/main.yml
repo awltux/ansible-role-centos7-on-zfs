@@ -25,6 +25,7 @@
 
 - name: Running and latest installed kernel must match
   shell: |
+    set -e   # prevent silent failures
     installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sort | head -1 | sed "s:/boot/vmlinuz-::" )
     runningKernel=$( uname -r )
     if [[ "${installedKernel}" != "${runningKernel}" ]]; then
@@ -142,11 +143,12 @@
       sudo zfs umount /sysroot && sudo zpool destroy -f pool && sudo sgdisk -Z {{ target_device }}'
   fail:
     msg: "{{ msg_string.split('\n')[:-1] }}"
-  when: parted_data.partitions|length != 0
+  when: parted_data.partitions|length != 0 and second_disk == true
   changed_when: false
 
 - name: 'Create bootable zfs drive on {{ target_device }}'
   shell: |
+    set -e   # prevent silent failures
     # Zap the disk
     sgdisk -Z {{ target_device }}
     
@@ -161,40 +163,58 @@
 
     # inform the OS of partition table changes
     partprobe /dev/sdb
-  
+  when: second_disk == true
+ 
 - name: 'Formatting efi boot drive on {{ target_device }}'
   shell: mkfs.fat -F32 {{ target_device }}1
+  when: second_disk == true
 
-- name: Create a zpool on zpool_disk
+- name: Is target partition suitable for zpool
+  fail: 
+    msg: "Partition not prepped for use by zpool {{ parted_data.partitions[1] }}"
+  when: parted_data.partitions[1].fstype != "" or
+        parted_data.partitions[1].name != "" or
+        parted_data.partitions[1].num != 2
+
+- name: Create a zpool called pool if not already done
   shell: |
-    # Create a zpool called pool on partition 2 
-    # aligned to 2^12 (2048) sectors
-    zpool create pool -m none {{ target_device }}2 -o ashift=12
-    zfs set compression=on pool
-    zfs set atime=off pool
+    set -e   # prevent silent failures
+    if ! zpool list | grep "^pool "; then
+      # Create a zpool called pool on partition 2 
+      # aligned to sector 2^12 (2048)
+      zpool create pool -m none {{ target_device }}2 -o ashift=12
+      zfs set compression=on pool
+      zfs set atime=off pool
+    fi
 
-    # Create a dataset on zpool called pool
-    zfs create -p pool/ROOT/fedora-28
-    # Store extended data directly in inodes
-    zfs set xattr=sa pool/ROOT/fedora-28
+    if ! zfs list | grep "^pool/ROOT/fedora-28 "; then
+      # Create a dataset on zpool called pool
+      zfs create -p pool/ROOT/fedora-28
+      # Store extended data directly in inodes
+      zfs set xattr=sa pool/ROOT/fedora-28
 
-    #zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 Allows copying fedora OS journal files 
-    zfs set acltype=posixacl pool/ROOT/fedora-28
-
-    # export/import the zpool on an alternative directory
-    # This gives flexability of what will be mounted on /
-    zpool export pool
-    zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
-
-    # Mount fedora dataset onto /sysroot/
-    zfs set mountpoint=/ pool/ROOT/fedora-28
+      # Allows copying fedora OS journal files 
+      zfs set acltype=posixacl pool/ROOT/fedora-28
+    fi
+ 
+    if ! zfs list | grep "^pool/ROOT/fedora-28.*/sysroot"; then
+      # export/import the zpool on an alternative directory
+      # This gives flexability of what will be mounted on /
+      zpool export pool
+      zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+    fi
+    
+    if ! mount | grep "^pool/ROOT/fedora-28 on /sysroot"; then
+      # Mount fedora dataset onto /sysroot/
+      zfs set mountpoint=/ pool/ROOT/fedora-28
+    fi
   
 - name: Copy the installed fedora from local drive to the zfs mount
-  shell: rsync --exclude=/proc/* --exclude=/sys/* --exclude=/dev/*  -avxHASX / /sysroot/
+  shell: rsync --exclude=/proc --exclude=/sys --exclude=/dev  -avxHASX / /sysroot/
 
 - name: Initialise Boot files on efi_boot partition
   shell: | 
-    
+    set -e   # prevent silent failures
     # Copy local /boot/efi files onto zfs  boot partition
     cd ~
     mkdir efi_mount
@@ -212,17 +232,32 @@
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ target_device }}1  -o value | head -1 )
     echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
+  when: second_disk == true
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |
-    DISK_ID=$( zpool status pool | grep /dev/disk/by- | xargs | cut -d' ' -f1 )
+    set -e   # prevent silent failures
+    # List all devices for 'pool'; should only be one at this point
+    #   Remove lines with '<title>:' at the start and empty lines
+    #   Last line should be the device details
+    #   Truncate spaces for input to 'cut' 
+    DISK_ID=$( zpool status pool | grep -v "^[ a-z]\+:" -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
+    # Check we extracted the right bit.
+    if [[ ! -e /dev/disk/by-id/${DISK_ID} ]]; then
+      echo "Failed to resolve valid device: /dev/disk/by-id/${DISK_ID}"
+      exit 1
+    fi
     echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
 
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
 
+- fail:
+    msg: "STOP HERE FOR NOW"
+
 - name: Check that boot partition has been set correctly
   shell: |
+    set -e
     BOOT_PARTITION_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
     if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_PARTITION_ID}; then
       echo "Boot disk missing: ${BOOT_PARTITION_ID}"

@@ -92,7 +92,7 @@ Install basic tools for getting and running playbook
 Clone the ansible playbook
     ```git clone https://github.com/awltux/fedora-hosted-docker-cluster-ansible-playbook.git```
 
-# Set some aliases to help developer
+# Set some aliases to help developers
 ```
 cat >> ~/.bashrc <<HEREDOC
 alias vi-task="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi roles/zfs-setup/tasks/main.yml"
@@ -103,20 +103,23 @@ HEREDOC
 source ~/.bashrc
 	
 cd fedora-hosted-docker-cluster-ansible-playbook/ansible
+
+# Tell git your github login name; assumes you only use github?
+github_username='yourusername'
+github_password='yourpassword'
+git config --global url."https://${github_username}:${github_password}@github.com"
+
+# If ':${github_password}' ommitted it can be cached using:
+git config --global credential.helper 'cache --timeout=28800'
 ```
 
 
 # ZFS can find phantom pools on old disks partitions
 
 # Find the size of the partition 
-PARTITION_SIZE=$( sudo blockdev --getsz /dev/sda3 )
+ZFS_PARTITION="/dev/sda4"
+PARTITION_SIZE=$( sudo blockdev --getsz ${ZFS_PARTITION} )
 # Delete a phantom by deleting first 2048 blocks of partition 
-sudo dd if=/dev/zero of=/dev/sda3 bs=512 count=2048
-2048+0 records in
-2048+0 records out
-1048576 bytes (1.0 MB, 1.0 MiB) copied, 0.33823 s, 3.1 MB/s
+sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048
 # Then delete the last 2048 blocks of partition 
-[admin@localhost ansible]$ sudo dd if=/dev/zero of=/dev/sda2 bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
-2048+0 records in
-2048+0 records out
-1048576 bytes (1.0 MB, 1.0 MiB) copied, 0.0536571 s, 19.5 MB/s
+sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))

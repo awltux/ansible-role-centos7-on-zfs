@@ -57,6 +57,16 @@ setup_boot_efi() {
   # Need the /boot/efi mounted for whats next
   mount_boot_efi
 
+  # Copy any updated zfs grub modules into efi boot partition
+  mkdir -p /boot/efi/EFI/fedora/x86_64-efi
+  cp -a /usr/lib/grub/x86_64-efi/* /boot/efi/EFI/fedora/x86_64-efi
+
+  # Calls to 'grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg' are failing with:
+  #    /usr/sbin/grub2-probe: error: cannot find a GRUB drive for ata-VBOX_HARDDISK_*-part2.  Check your device.map.
+  # Something (zfs or grub) is assuming devices only exist under /dev
+  # HACK ALERT: Create a /dev/* link for all devices under /dev/disk/by-id/*
+  $( cd /dev; ln -f -s /dev/disk/by-id/* . )
+
   # Rebuild the grub config
   grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
 
@@ -67,10 +77,6 @@ setup_boot_efi() {
     echo "Installed Kernel not mentioned in grub.cfg"
     exit 1
   fi
-
-  # Copy any updated zfs grub modules into efi boot partition
-  mkdir -p /boot/efi/EFI/fedora/x86_64-efi
-  cp -a /usr/lib/grub/x86_64-efi/zfs* /boot/efi/EFI/fedora/x86_64-efi
 
   # SYS_EXIT will trigger trap which will run umount_boot_efi()
 }

@@ -74,7 +74,8 @@
     regexp: '{{ item.name }}'
     line: '{{ item.name }}={{ item.value  }}'
   with_items:
-    - { name: 'GRUB_PRELOAD_MODULES', value:   '\"zfs\"' }
+    # Add zfs module to grub
+    - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
 - name: 'Ensure zfs module is loaded during boot sequence'

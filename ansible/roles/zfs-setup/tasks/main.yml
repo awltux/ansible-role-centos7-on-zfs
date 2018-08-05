@@ -173,9 +173,15 @@
 - name: Is target partition suitable for zpool
   fail: 
     msg: "Partition not prepped for use by zpool {{ parted_data.partitions[1] }}"
-  when: parted_data.partitions[1].fstype != "" or
-        parted_data.partitions[1].name != "" or
-        parted_data.partitions[1].num != {{ target_partition_number }}
+  loop: "{{ parted_data['partitions'] }}"
+  when: item.num == target_partition_number and (
+        item.fstype != '' or
+        item.name != ''
+    )
+
+#  when: parted_data.partitions[1].fstype != "" or
+#        parted_data.partitions[1].name != "" or
+#        parted_data.partitions[1].num != {{ target_partition_number }}
 
 - name: Create a zpool called pool if not already done
   shell: |
@@ -227,9 +233,9 @@
     set -e   # prevent silent failures
 
     rsync --exclude=/proc --exclude=/sys --exclude=/dev  -avxHASX / /sysroot/
-    mkdir /sysroot/proc
-    mkdir /sysroot/sys
-    mkdir /sysroot/dev
+    mkdir -p /sysroot/proc
+    mkdir -p /sysroot/sys
+    mkdir -p /sysroot/dev
 
 - name: Initialise Boot files on efi_boot partition
   shell: | 
@@ -260,7 +266,7 @@
     #   Remove lines with '<title>:' at the start and empty lines
     #   Last line should be the device details
     #   Truncate spaces for input to 'cut' 
-    DISK_ID=$( zpool status pool | grep -v "^[ a-z]\+:" -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
+    DISK_ID=$( zpool status pool | grep -v "^[ a-z]\+:" | grep -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
     # Check we extracted the right bit.
     if [[ ! -e /dev/disk/by-id/${DISK_ID} ]]; then
       echo "Failed to resolve valid device: /dev/disk/by-id/${DISK_ID}"
@@ -270,6 +276,8 @@
 
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
+  register: shell_output
+  failed_when: "' error:' in shell_output.stderr"
 
 - name: Check that boot partition has been set correctly
   shell: |

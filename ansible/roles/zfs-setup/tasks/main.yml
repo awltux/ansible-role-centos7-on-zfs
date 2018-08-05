@@ -174,7 +174,7 @@
     msg: "Partition not prepped for use by zpool {{ parted_data.partitions[1] }}"
   when: parted_data.partitions[1].fstype != "" or
         parted_data.partitions[1].name != "" or
-        parted_data.partitions[1].num != 2
+        parted_data.partitions[1].num != {{ target_partition_number }}
 
 - name: Create a zpool called pool if not already done
   shell: |

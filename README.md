@@ -68,14 +68,12 @@ Create an 'admin' user, with admin rights; server hardening will disable remote 
 
 # Setup SSH keys
 Either:
-* Use scp to copy pre-existing ~admin/.ssh folder onto home dir 
+* Use scp to copy pre-existing ~/.ssh folder onto home dir 
 * Ensure that the id_rsa private key is set to 600 permissions 
 
 OR:
 * Create new 4096 bit rsa keys
     ```ssh-keygen -t rsa -b 4096```
-
-
 
 Now add this key to the authorized folder
     ```ssh-copy-id admin@localhost```
@@ -96,12 +94,29 @@ Clone the ansible playbook
 
 # Set some aliases to help developer
 ```
-cat >> ~admin/.bashrc <<HEREDOC
-alias vi-task="cd ~admin/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi roles/zfs-setup/tasks/main.yml"
-alias vi-pb="cd ~admin/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi setup-bootstrap-host.yml"
-alias run-pb="cd ~admin/fedora-hosted-docker-cluster-ansible-playbook/ansible; ansible-playbook setup-bootstrap-host.yml"
+cat >> ~/.bashrc <<HEREDOC
+alias vi-task="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi roles/zfs-setup/tasks/main.yml"
+alias vi-pb="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi setup-bootstrap-host.yml"
+alias run-pb="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; ansible-playbook setup-bootstrap-host.yml"
+alias git-c="cd ~/fedora-hosted-docker-cluster-ansible-playbook; git add .; git commit -m \"Auto comment\"; git push"
 HEREDOC
-source ~admin/.bashrc
+source ~/.bashrc
 	
 cd fedora-hosted-docker-cluster-ansible-playbook/ansible
 ```
+
+
+# ZFS can find phantom pools on old disks partitions
+
+# Find the size of the partition 
+PARTITION_SIZE=$( sudo blockdev --getsz /dev/sda3 )
+# Delete a phantom by deleting first 2048 blocks of partition 
+sudo dd if=/dev/zero of=/dev/sda3 bs=512 count=2048
+2048+0 records in
+2048+0 records out
+1048576 bytes (1.0 MB, 1.0 MiB) copied, 0.33823 s, 3.1 MB/s
+# Then delete the last 2048 blocks of partition 
+[admin@localhost ansible]$ sudo dd if=/dev/zero of=/dev/sda2 bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
+2048+0 records in
+2048+0 records out
+1048576 bytes (1.0 MB, 1.0 MiB) copied, 0.0536571 s, 19.5 MB/s

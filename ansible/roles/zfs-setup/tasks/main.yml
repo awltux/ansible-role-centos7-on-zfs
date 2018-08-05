@@ -220,7 +220,12 @@
       # export/import the zpool on an alternative directory
       # This gives flexability of what will be mounted on /
       zpool export pool
-      zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+      
+      # FIXME: Much better to use by-id, but there are problems with brub2-probe
+      # by-id seems to cause problems when running:
+      #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
+      ## zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+      zpool import pool -d /dev -o altroot=/sysroot
     fi
     
     if ! mount | grep "^pool/ROOT/fedora-28 on /sysroot"; then
@@ -268,11 +273,11 @@
     #   Truncate spaces for input to 'cut' 
     DISK_ID=$( zpool status pool | grep -v "^[ a-z]\+:" | grep -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
     # Check we extracted the right bit.
-    if [[ ! -e /dev/disk/by-id/${DISK_ID} ]]; then
-      echo "Failed to resolve valid device: /dev/disk/by-id/${DISK_ID}"
+    if [[ ! -e /dev/${DISK_ID} ]]; then
+      echo "Failed to resolve valid device: /dev/${DISK_ID}"
       exit 1
     fi
-    echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
+    echo "GRUB_DEVICE_BOOT=/dev/${DISK_ID}" >> /sysroot/etc/default/grub
 
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify

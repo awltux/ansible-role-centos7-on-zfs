@@ -4,6 +4,8 @@
   become: true
   vars:
     target_device: '/dev/sda'
+    target_partition: '{{ target_device }}4'
+    boot_efi_partition: '{{ target_device }}1'
     second_disk: false
   roles:
     - { role: common }

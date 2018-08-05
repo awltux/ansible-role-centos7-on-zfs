@@ -156,7 +156,7 @@
     sgdisk -n 1:0:+200M -t 1:ef00 -c 1:"efi_boot"  {{ target_device }}
 
     # Ensure the boot partition is GPT    
-    sgdisk -g {{ target_device }}1
+    sgdisk -g {{ boot_efi_partition }}
 
     # Create a zpool partition on the rest of the disk
     sgdisk -n 2:0:0 -t 2:8300 -c 2:"zfs_pool" {{ target_device }} 
@@ -166,7 +166,7 @@
   when: second_disk == true
  
 - name: 'Formatting efi boot drive on {{ target_device }}'
-  shell: mkfs.fat -F32 {{ target_device }}1
+  shell: mkfs.fat -F32 {{ boot_efi_partition }}
   when: second_disk == true
 
 - name: Is target partition suitable for zpool
@@ -183,7 +183,7 @@
     if ! zpool list | grep "^pool "; then
       # Create a zpool called pool on partition 2 
       # aligned to sector 2^12 (2048)
-      zpool create pool -m none {{ target_device }}2 -o ashift=12
+      zpool create pool -m none {{ target_partition }} -o ashift=12
       zfs set atime=off pool
 
     # Grub failed to boot complaining that kernel needs to be loaded first. 
@@ -236,7 +236,7 @@
     # Copy local /boot/efi files onto zfs  boot partition
     cd ~
     mkdir efi_mount
-    mount {{ target_device }}1 efi_mount
+    mount {{ boot_efi_partition }} efi_mount
     cp -a /boot/efi/* efi_mount
     umount efi_mount
     rmdir efi_mount
@@ -248,7 +248,7 @@
     efibootmgr -d {{ target_device }} -v -c -l /EFI/fedora/shimx64.efi -L Fedora28
 
     # Ensure the boot partition auto mounts onto /boot/efi at startup
-    BLK_ID=$( blkid {{ target_device }}1  -o value | head -1 )
+    BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
     echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
   when: second_disk == true
 
@@ -273,7 +273,7 @@
 - name: Check that boot partition has been set correctly
   shell: |
     set -e
-    BOOT_PARTITION_ID=$(  blkid -o value {{ target_device }}1 | tail -1 )
+    BOOT_PARTITION_ID=$(  blkid -o value {{ boot_efi_partition }} | tail -1 )
     if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_PARTITION_ID}; then
       echo "Boot disk missing: ${BOOT_PARTITION_ID}"
       exit 1

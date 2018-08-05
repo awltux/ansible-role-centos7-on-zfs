@@ -3,6 +3,11 @@
 
 mount_boot_efi() {
   # Mount efi boot partition using entry in /etc/fstab
+  if mount | grep "/boot/efi"; then
+    # Probably a development oversight
+    #  make sure we mount from /etc/fstab
+    umount /boot/efi
+  fi
   mount /boot/efi
 
   # Make sure we unmount it - even if there are errors
@@ -42,7 +47,9 @@ setup_boot_efi() {
   fi 
 
   # Recreate the initramfs for the new kernel
-  sh -x /usr/bin/dracut -fv --kver ${installedKernel}
+  # set -x: verbose output
+  # set -e: fail on non-zero rc
+  sh -x -e -c "/usr/bin/dracut -fv --kver ${installedKernel}"
 
   if ! [[ -e /boot/initramfs-${installedKernel}.img ]]; then
     echo "Missing file: /boot/initramfs-${installedKernel}.img"
@@ -72,7 +79,17 @@ setup_boot_efi() {
   mkdir -p /boot/efi/EFI/fedora/x86_64-efi
   cp -a /usr/lib/grub/x86_64-efi/zfs* /boot/efi/EFI/fedora/x86_64-efi
 
-  # SYS_EXIT will trigger trap which will run umount_boot_efi()
+  # grub has problems booting to /boot on a zfs partition
+  # Copy the /boot files onto the /boot/efi partition
+  # grub.cfg menu is updated to look for the 
+  # kernel and initrd files on /boot/efi/boot
+  rsync -a --no-links --delete --exclude=efi /boot /boot/efi/
+
+  # fat32 filesystem doesnt support symbolic links; just copy it
+  # \cp means ignore any alias e.g. cp -i which would prompt for replace
+  \cp -u /boot/efi/EFI/fedora/grubenv /boot/efi/boot/grub2/
+
+  # SYS_EXIT will trigger trap to call umount_boot_efi()
 }
 
 setup_boot_efi

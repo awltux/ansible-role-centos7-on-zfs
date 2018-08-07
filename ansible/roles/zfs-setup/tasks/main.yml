@@ -200,7 +200,7 @@
       fi
       # Create a zpool called 'pool' on partitionUUID 
       # aligned to sector 2^12 (2048)
-      zpool create pool -m none {{ partitionUUID }} -o ashift=12
+      zpool create pool -m none ${partitionUUID} -o ashift=12
       zfs set atime=off pool
 
       # Grub failed to boot complaining that kernel needs to be loaded first. 
@@ -215,7 +215,7 @@
       #UNTESTED#  zfs inherit compression pool
     fi
 
-    if ! zfs list | grep "^pool/ROOT/fedora-28 " > /dev/null; then
+    if ! ( zfs list | grep "^pool/ROOT/fedora-28 " ) > /dev/null; then
       # Create a dataset on zpool called pool
       zfs create -p pool/ROOT/fedora-28
       # Store extended data directly in inodes
@@ -228,16 +228,19 @@
       # zfs inherit acltype pool/ROOT/fedora-28
     fi
  
-    if ! zfs list | grep "^pool/ROOT/fedora-28.*/sysroot"; then
+    if ! ( zfs list | grep "^pool/ROOT/fedora-28.*/sysroot" ); then
+ 
+      if ( mount | grep "/sysroot" ); then
+        umount /sysroot
+      fi
+ 
       # export/import the zpool on an alternative directory
       # This gives flexability of what will be mounted on /
       zpool export pool
       
-      # FIXME: Much better to use by-id, but there are problems with grub2-probe
       # by-id seems to cause problems when running:
       #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
-      zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
-      ## zpool import pool -d /dev -o altroot=/sysroot
+      zpool import pool -d /dev/disk/by-partuuid -o altroot=/sysroot
     fi
     
     if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then

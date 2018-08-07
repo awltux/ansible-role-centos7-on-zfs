@@ -310,7 +310,7 @@
     
     # Do some final clean-up
     umount /sysroot
-    zpool set altroot=off pool
+    # Make the pool ready for first import
     zpool export
 
 - name: Reboot to ZFS goodness

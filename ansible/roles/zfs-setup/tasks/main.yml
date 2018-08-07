@@ -241,6 +241,7 @@
     if ! mount | grep "^pool/ROOT/fedora-28 on /sysroot"; then
       # Mount fedora dataset onto /sysroot/
       zfs set mountpoint=/ pool/ROOT/fedora-28
+      zfs mount pool/ROOT/fedora-28
     fi
   
 - name: Copy the installed fedora from local drive to the zfs mount
@@ -311,7 +312,7 @@
     # Do some final clean-up
     umount /sysroot
     # Make the pool ready for first import
-    zpool export
+    zpool export pool
 
 - name: Reboot to ZFS goodness
   debug:

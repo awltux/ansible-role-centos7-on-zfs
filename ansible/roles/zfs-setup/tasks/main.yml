@@ -43,30 +43,25 @@
     regexp: '^SELINUX='
     line: 'SELINUX=permissive'
     
-- name: Are EFI packages installed?
+- name: Is system configured to use EFI?
   shell: rpm -qa | grep grub2-efi
   args:
     warn: no
   register: rpm_list
-  changed_when: false
-
-- name: Fail if system not configured to use EFI
-  fail:
-    msg: "System should be using EFI"
-  when: rpm_list.stdout_lines|length == 0
+  failed_when: "rpm_list.stdout_lines|length == 0"
   changed_when: false
 
 - name: Copy zmogrify onto system
   copy:
     src: "{{ role_path }}/files/zmogrify"
     dest: /usr/local/sbin/
-    mode: u=rwx,g=rx,o=rx
+    mode: u=rwx,g=r,o=r
 
 - name: Copy zenter onto system
   copy:
     src: "{{ role_path }}/files/zenter"
     dest: /usr/local/sbin/
-    mode: u=rwx,g=rx,o=rx
+    mode: u=rwx,g=r,o=r
 
 - name: 
   lineinfile:
@@ -76,16 +71,16 @@
   with_items:
     # Add zfs module to grub
     - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
-    - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
+    - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'  }
 
-- name: 'Ensure zfs module is loaded during boot sequence'
+- name: 'Make zpool status report the full path of devices'
   blockinfile:
     path: /etc/profile.d/grub2_zpool_fix.sh
     create: yes
     block: |
       export ZPOOL_VDEV_NAME_PATH=YES
 
-- name: Kernel upgrades should trigger zfs driver rebuild 
+- name: Kernel upgrades should trigger a zfs driver rebuild 
   file:
     src: "/usr/local/sbin/zmogrify"
     dest: "/etc/kernel/postinst.d/zmogrify"
@@ -112,20 +107,20 @@
       # Load zfs kernel module
       zfs
 
-- name: Disable the import cache as it can cause problems as zfs pool changes
-  service:
-    name: zfs-import-cache
-    enabled: no
+# - name: Disable the import cache as it can cause problems as zfs pool changes
+#   service:
+#     name: zfs-import-cache
+#     enabled: no
 
-- name: Enable the import-scan to scan devices 
-  service:
-    name: zfs-import-scan
-    enabled: yes
+# - name: Enable the import-scan to scan devices 
+#   service:
+#     name: zfs-import-scan
+#     enabled: yes
 
-- name: Delete unused zfs cache file
-  file:
-    state: absent
-    path: "/etc/zfs/zpool.cache"
+# - name: Delete unused zfs cache file
+#   file:
+#     state: absent
+#     path: "/etc/zfs/zpool.cache"
 
 - name: rebuild the initramfs excluding the zpool cache
   shell: dracut -fv --kver `uname -r`

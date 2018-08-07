@@ -230,10 +230,6 @@
  
     if ! ( zfs list | grep "^pool/ROOT/fedora-28.*/sysroot" ); then
  
-      if ( mount | grep "/sysroot" ); then
-        umount /sysroot
-      fi
- 
       # export/import the zpool on an alternative directory
       # This gives flexability of what will be mounted on /
       zpool export pool
@@ -244,6 +240,10 @@
     fi
     
     if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then
+      if ( mount | grep "/sysroot" ); then
+        umount /sysroot
+      fi
+ 
       # Mount fedora dataset onto /sysroot/
       zfs set mountpoint=/ pool/ROOT/fedora-28
       zfs mount pool/ROOT/fedora-28

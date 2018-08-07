@@ -2,18 +2,8 @@
 Ansible playbook that manages a Fedora hosted Docker cluster
 
 ## Setup a Fedora-server:28 instance
-
-Create an 'admin' user, add to 'wheel' group.
-Configure sudo to allow NO_PASWD on wheel group.   
-
 This server is the first member of the Docker cluster.
 It will eventually be re-imaged once cluster is properly initialised.
-
-```
-git clone https://github.com/awltux/fedora-hosted-docker-cluster-ansible-playbook.git
-cd fedora-hosted-docker-cluster-ansible-playbook/ansible
-ansible-playbook setup-bootstrap-host.yml
-```
 
 # VirtualBox Test Machine
 If you want to experiment this playbook, create a VirtualBox machine as follows:
@@ -66,6 +56,7 @@ Ensure network is on and connected
 Create an 'admin' user, with admin rights; server hardening will disable remote access for root
 
 
+# POST FEDORA INSTALL
 # Setup SSH keys
 Either:
 * Use scp to copy pre-existing ~/.ssh folder onto home dir 
@@ -101,8 +92,9 @@ alias run-pb="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; ansibl
 alias git-c="cd ~/fedora-hosted-docker-cluster-ansible-playbook; git add .; git commit -m \"Auto comment\"; git push"
 HEREDOC
 source ~/.bashrc
-	
+
 cd fedora-hosted-docker-cluster-ansible-playbook/ansible
+ansible-playbook setup-bootstrap-host.yml
 
 # Tell git your github login name; assumes you only use github?
 github_username='yourusername'

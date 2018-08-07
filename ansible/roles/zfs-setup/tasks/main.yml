@@ -173,12 +173,18 @@
   loop: "{{ parted_data['partitions'] }}"
   when: item.num == target_partition_number and (
         item.fstype != '' or
-        item.name != ''
-    )
+        item.name != '' )
 
-#  when: parted_data.partitions[1].fstype != "" or
-#        parted_data.partitions[1].name != "" or
-#        parted_data.partitions[1].num != {{ target_partition_number }}
+- name: Wiping zpool parition
+  shell: |
+    set -e   # prevent silent failures
+ 
+    if ! ( zpool list | grep "^pool " ); then
+      PARTITION_SIZE=$( sudo blockdev --getsz {{ target_partition }} ) 
+      dd if=/dev/zero of={{ target_partition }} bs=512 count=2048
+      dd if=/dev/zero of={{ target_partition }} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
+    fi
+  when: wipe_partition == 'y'
 
 - name: Create a zpool called pool if not already done
   shell: |
@@ -187,25 +193,19 @@
     if ! ( zpool list | grep "^pool " ); then
       # Create a zpool called pool on partition 2 
       # aligned to sector 2^12 (2048)
-      if ! ( zpool create pool -m none {{ target_partition }} -o ashift=12 ); then
-        PARTITION_SIZE=$( sudo blockdev --getsz ${target_partition} )
-        echo "Disk probably needs scrubbed of zfs headers:"
-        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048"
-        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))"
-        exit 1
-      fi
+      zpool create pool -m none {{ target_partition }} -o ashift=12
       zfs set atime=off pool
 
-    # Grub failed to boot complaining that kernel needs to be loaded first. 
-    # Manually navigating to the kernel image in the grub console 
-    #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
-    #          error: compression algorithm inherit not supported
-    # NOTE: This has only been tested on VirtualBox so far
-    # Disabled this until problem can be identified
-    # Could this be related to GRUB_PRELOAD_MODULES setting?
-    # There is a module in 
-    ##  zfs set compression=on pool
-    #UNTESTED#  zfs inherit compression pool
+      # Grub failed to boot complaining that kernel needs to be loaded first. 
+      # Manually navigating to the kernel image in the grub console 
+      #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
+      #          error: compression algorithm inherit not supported
+      # NOTE: This has only been tested on VirtualBox so far
+      # Disabled this until problem can be identified
+      # Could this be related to GRUB_PRELOAD_MODULES setting?
+      # There is a module in 
+      ##  zfs set compression=on pool
+      #UNTESTED#  zfs inherit compression pool
     fi
 
     if ! zfs list | grep "^pool/ROOT/fedora-28 " > /dev/null; then
@@ -233,7 +233,7 @@
       zpool import pool -d /dev -o altroot=/sysroot
     fi
     
-    if ! mount | grep "^pool/ROOT/fedora-28 on /sysroot"; then
+    if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then
       # Mount fedora dataset onto /sysroot/
       zfs set mountpoint=/ pool/ROOT/fedora-28
       zfs mount pool/ROOT/fedora-28

@@ -74,8 +74,10 @@
     regexp: '{{ item.name }}'
     line: '{{ item.name }}={{ item.value  }}'
   with_items:
-    # Add zfs module to grub
-    - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
+    # Add zfs module to grub:
+    # https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html
+    # zmogrify copies modules to: /boot/efi/EFI/fedora/x86_64-efi
+    - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs zfscrypt zfsinfo"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
 - name: 'Ensure zfs module is loaded during boot sequence'
@@ -199,6 +201,8 @@
     #          error: compression algorithm inherit not supported
     # NOTE: This has only been tested on VirtualBox so far
     # Disabled this until problem can be identified
+    # Could this be related to GRUB_PRELOAD_MODULES setting?
+    # There is a module in 
     ##  zfs set compression=on pool
     #UNTESTED#  zfs inherit compression pool
     fi
@@ -253,6 +257,7 @@
     umount efi_mount
     rmdir efi_mount
 
+    # FIXME: Assumes GPT entry is at position 4 (works for me, but...)
     # Remove old GPT entry for build hdd
     efibootmgr -d {{ target_device }} -v -b 4 -B
 
@@ -261,23 +266,27 @@
 
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
-    echo "UUID=${BLK_ID}  /boot/efi  vfat  umask=0077,shortname=winnt 0 2" > /sysroot/etc/fstab
+    echo "UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
+    echo "pool/ROOT/fedora-28  /          zfs   default                    0 0" >> /sysroot/etc/fstab
   when: second_disk == true
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |
     set -e   # prevent silent failures
+    
     # List all devices for 'pool'; should only be one at this point
     #   Remove lines with '<title>:' at the start and empty lines
     #   Last line should be the device details
     #   Truncate spaces for input to 'cut' 
-    DISK_ID=$( zpool status pool | grep -v "^[ a-z]\+:" | grep -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
+    # FIXME: Fragile lookup; assumes only one device in pool; probably correct for this scenario
+    DISK_ID=$( zpool status -P pool | grep -v "^[ a-z]\+:" | grep -v "^$" | tail -1 | xargs | cut -d' ' -f1 )
+
     # Check we extracted the right bit.
-    if [[ ! -e /dev/${DISK_ID} ]]; then
-      echo "Failed to resolve valid device: /dev/${DISK_ID}"
+    if [[ ! -e ${DISK_ID} ]]; then
+      echo "Failed to resolve valid device: ${DISK_ID}"
       exit 1
     fi
-    echo "GRUB_DEVICE_BOOT=/dev/${DISK_ID}" >> /sysroot/etc/default/grub
+    echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
 
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify

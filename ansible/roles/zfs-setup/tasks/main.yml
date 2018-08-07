@@ -200,7 +200,8 @@
       fi
       # Create a zpool called 'pool' on partitionUUID 
       # aligned to sector 2^12 (2048)
-      zpool create pool -m none ${partitionUUID} -o ashift=12
+      zpool create pool -m none {{ target_partition }} -o ashift=12
+      # zpool create pool -m none ${partitionUUID} -o ashift=12
       zfs set atime=off pool
 
       # Grub failed to boot complaining that kernel needs to be loaded first. 

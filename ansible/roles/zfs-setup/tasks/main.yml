@@ -72,7 +72,7 @@
     # Add zfs module to grub:
     # https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html
     # zmogrify copies modules to: /boot/efi/EFI/fedora/x86_64-efi
-    - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs zfscrypt zfsinfo"' }
+    - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
 - name: 'Make zpool status report the full path of devices'

@@ -1,3 +1,4 @@
 target
 /ansible/*.retry
-/ansible/roles/zfs-setup/files/*.orig
+*.orig
+.*.swp

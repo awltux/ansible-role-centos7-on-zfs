@@ -301,7 +301,11 @@
       echo "Boot disk missing: ${BOOT_PARTITION_ID}"
       exit 1
     fi
-  changed_when: false
+    
+    # Do some final clean-up
+    umount /sysroot
+    zpool set altroot=off pool
+    zpool export
 
 - name: Reboot to ZFS goodness
   debug:

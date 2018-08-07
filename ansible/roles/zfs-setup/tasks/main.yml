@@ -189,10 +189,16 @@
   shell: |
     set -e   # prevent silent failures
  
-    if ! zpool list | grep "^pool "; then
+    if ! ( zpool list | grep "^pool " ); then
       # Create a zpool called pool on partition 2 
       # aligned to sector 2^12 (2048)
-      zpool create pool -m none {{ target_partition }} -o ashift=12
+      if ! ( zpool create pool -m none {{ target_partition }} -o ashift=12 ); then
+        PARTITION_SIZE=$( sudo blockdev --getsz ${target_partition} )
+        echo "Disk probably needs scrubbed of zfs headers:"
+        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048"
+        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))"
+        exit 1
+      fi
       zfs set atime=off pool
 
     # Grub failed to boot complaining that kernel needs to be loaded first. 
@@ -207,7 +213,7 @@
     #UNTESTED#  zfs inherit compression pool
     fi
 
-    if ! zfs list | grep "^pool/ROOT/fedora-28 "; then
+    if ! zfs list | grep "^pool/ROOT/fedora-28 " > /dev/null; then
       # Create a dataset on zpool called pool
       zfs create -p pool/ROOT/fedora-28
       # Store extended data directly in inodes

@@ -109,15 +109,15 @@
       # Load zfs kernel module
       zfs
 
- - name: Disable the import cache as it can cause problems as zfs pool changes
-   service:
-     name: zfs-import-cache
-     enabled: yes
+- name: Disable the import cache as it can cause problems as zfs pool changes
+  service:
+    name: zfs-import-cache
+    enabled: yes
 
- - name: Enable the import-scan to scan devices 
-   service:
-     name: zfs-import-scan
-     enabled: no
+- name: Enable the import-scan to scan devices 
+  service:
+    name: zfs-import-scan
+    enabled: no
 
 # - name: Delete unused zfs cache file
 #   file:

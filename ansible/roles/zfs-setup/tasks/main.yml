@@ -226,11 +226,11 @@
       # This gives flexability of what will be mounted on /
       zpool export pool
       
-      # FIXME: Much better to use by-id, but there are problems with brub2-probe
+      # FIXME: Much better to use by-id, but there are problems with grub2-probe
       # by-id seems to cause problems when running:
       #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
-      ## zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
-      zpool import pool -d /dev -o altroot=/sysroot
+      zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+      ## zpool import pool -d /dev -o altroot=/sysroot
     fi
     
     if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then

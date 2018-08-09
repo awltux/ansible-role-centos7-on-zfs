@@ -43,30 +43,25 @@
     regexp: '^SELINUX='
     line: 'SELINUX=permissive'
     
-- name: Are EFI packages installed?
+- name: Is system configured to use EFI?
   shell: rpm -qa | grep grub2-efi
   args:
     warn: no
   register: rpm_list
-  changed_when: false
-
-- name: Fail if system not configured to use EFI
-  fail:
-    msg: "System should be using EFI"
-  when: rpm_list.stdout_lines|length == 0
+  failed_when: "rpm_list.stdout_lines|length == 0"
   changed_when: false
 
 - name: Copy zmogrify onto system
   copy:
     src: "{{ role_path }}/files/zmogrify"
     dest: /usr/local/sbin/
-    mode: u=rwx,g=rx,o=rx
+    mode: u=rwx,g=r,o=r
 
 - name: Copy zenter onto system
   copy:
     src: "{{ role_path }}/files/zenter"
     dest: /usr/local/sbin/
-    mode: u=rwx,g=rx,o=rx
+    mode: u=rwx,g=r,o=r
 
 - name: 
   lineinfile:
@@ -80,14 +75,14 @@
     - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs zfscrypt zfsinfo"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
-- name: 'Ensure zfs module is loaded during boot sequence'
+- name: 'Make zpool status report the full path of devices'
   blockinfile:
     path: /etc/profile.d/grub2_zpool_fix.sh
     create: yes
     block: |
       export ZPOOL_VDEV_NAME_PATH=YES
 
-- name: Kernel upgrades should trigger zfs driver rebuild 
+- name: Kernel upgrades should trigger a zfs driver rebuild 
   file:
     src: "/usr/local/sbin/zmogrify"
     dest: "/etc/kernel/postinst.d/zmogrify"
@@ -114,20 +109,20 @@
       # Load zfs kernel module
       zfs
 
-- name: Disable the import cache as it can cause problems as zfs pool changes
-  service:
-    name: zfs-import-cache
-    enabled: no
+# - name: Disable the import cache as it can cause problems as zfs pool changes
+#   service:
+#     name: zfs-import-cache
+#     enabled: no
 
-- name: Enable the import-scan to scan devices 
-  service:
-    name: zfs-import-scan
-    enabled: yes
+# - name: Enable the import-scan to scan devices 
+#   service:
+#     name: zfs-import-scan
+#     enabled: yes
 
-- name: Delete unused zfs cache file
-  file:
-    state: absent
-    path: "/etc/zfs/zpool.cache"
+# - name: Delete unused zfs cache file
+#   file:
+#     state: absent
+#     path: "/etc/zfs/zpool.cache"
 
 - name: rebuild the initramfs excluding the zpool cache
   shell: dracut -fv --kver `uname -r`
@@ -178,12 +173,18 @@
   loop: "{{ parted_data['partitions'] }}"
   when: item.num == target_partition_number and (
         item.fstype != '' or
-        item.name != ''
-    )
+        item.name != '' )
 
-#  when: parted_data.partitions[1].fstype != "" or
-#        parted_data.partitions[1].name != "" or
-#        parted_data.partitions[1].num != {{ target_partition_number }}
+- name: Wiping zpool parition
+  shell: |
+    set -e   # prevent silent failures
+ 
+    if ! ( zpool list | grep "^pool " ); then
+      PARTITION_SIZE=$( sudo blockdev --getsz {{ target_partition }} ) 
+      dd if=/dev/zero of={{ target_partition }} bs=512 count=2048
+      dd if=/dev/zero of={{ target_partition }} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
+    fi
+  when: wipe_partition == 'y'
 
 - name: Create a zpool called pool if not already done
   shell: |
@@ -192,25 +193,19 @@
     if ! ( zpool list | grep "^pool " ); then
       # Create a zpool called pool on partition 2 
       # aligned to sector 2^12 (2048)
-      if ! ( zpool create pool -m none {{ target_partition }} -o ashift=12 ); then
-        PARTITION_SIZE=$( sudo blockdev --getsz ${target_partition} )
-        echo "Disk probably needs scrubbed of zfs headers:"
-        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048"
-        echo "   sudo dd if=/dev/zero of=${target_partition} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))"
-        exit 1
-      fi
+      zpool create pool -m none {{ target_partition }} -o ashift=12
       zfs set atime=off pool
 
-    # Grub failed to boot complaining that kernel needs to be loaded first. 
-    # Manually navigating to the kernel image in the grub console 
-    #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
-    #          error: compression algorithm inherit not supported
-    # NOTE: This has only been tested on VirtualBox so far
-    # Disabled this until problem can be identified
-    # Could this be related to GRUB_PRELOAD_MODULES setting?
-    # There is a module in 
-    ##  zfs set compression=on pool
-    #UNTESTED#  zfs inherit compression pool
+      # Grub failed to boot complaining that kernel needs to be loaded first. 
+      # Manually navigating to the kernel image in the grub console 
+      #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
+      #          error: compression algorithm inherit not supported
+      # NOTE: This has only been tested on VirtualBox so far
+      # Disabled this until problem can be identified
+      # Could this be related to GRUB_PRELOAD_MODULES setting?
+      # There is a module in 
+      ##  zfs set compression=on pool
+      #UNTESTED#  zfs inherit compression pool
     fi
 
     if ! zfs list | grep "^pool/ROOT/fedora-28 " > /dev/null; then
@@ -231,14 +226,14 @@
       # This gives flexability of what will be mounted on /
       zpool export pool
       
-      # FIXME: Much better to use by-id, but there are problems with brub2-probe
+      # FIXME: Much better to use by-id, but there are problems with grub2-probe
       # by-id seems to cause problems when running:
       #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
-      ## zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
-      zpool import pool -d /dev -o altroot=/sysroot
+      zpool import pool -d /dev/disk/by-id -o altroot=/sysroot
+      ## zpool import pool -d /dev -o altroot=/sysroot
     fi
     
-    if ! mount | grep "^pool/ROOT/fedora-28 on /sysroot"; then
+    if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then
       # Mount fedora dataset onto /sysroot/
       zfs set mountpoint=/ pool/ROOT/fedora-28
       zfs mount pool/ROOT/fedora-28
@@ -311,8 +306,8 @@
     
     # Do some final clean-up
     umount /sysroot
-    zpool set altroot=off pool
-    zpool export
+    # Make the pool ready for first import
+    zpool export pool
 
 - name: Reboot to ZFS goodness
   debug:

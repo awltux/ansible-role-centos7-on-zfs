@@ -8,6 +8,14 @@
     target_partition: '{{ target_device }}{{ target_partition_number }}'
     boot_efi_partition: '{{ target_device }}1'
     second_disk: false
+    wipe_partition: 'y'
+    auto: 1
+
+  vars_prompt:
+    - name: wipe_partition
+      prompt: "Press 'y' to wipe partition"
+      default: 'n'
+
   roles:
     - { role: common }
 #    - { role: load-server-hardening }

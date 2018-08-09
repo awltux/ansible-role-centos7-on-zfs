@@ -175,7 +175,7 @@
         item.fstype != '' or
         item.name != '' )
 
-- name: Wiping zpool parition
+- name: Wiping zpool meta-data from parition
   shell: |
     set -e   # prevent silent failures
  
@@ -191,9 +191,16 @@
     set -e   # prevent silent failures
  
     if ! ( zpool list | grep "^pool " ); then
-      # Create a zpool called pool on partition 2 
+      # find the /dev/disk/by-partuuid/${partitionUUID}
+      partitionUUID=$( lsblk -ln -o PARTUUID -d {{ target_partition }} )
+      # if string empty or link missing
+      if [[ -z "${partitionUUID}" ]] || [[ ! -e /dev/disk/by-partuuid/${partitionUUID} ]]; then
+        echo "[ERROR] Cannot find the zfs root partuuid!"
+        exit 1
+      fi
+      # Create a zpool called 'pool' on partitionUUID 
       # aligned to sector 2^12 (2048)
-      zpool create pool -m none {{ target_partition }} -o ashift=12
+      zpool create pool -m none {{ partitionUUID }} -o ashift=12
       zfs set atime=off pool
 
       # Grub failed to boot complaining that kernel needs to be loaded first. 

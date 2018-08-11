@@ -284,12 +284,12 @@
   shell: | 
     set -e   # prevent silent failures
     # Copy local /boot/efi files onto zfs  boot partition
-    cd ~
-    mkdir efi_mount
-    mount {{ boot_efi_partition }} efi_mount
-    cp -a /boot/efi/* efi_mount
-    umount efi_mount
-    rmdir efi_mount
+    EFI_MNT=/mnt/efi_mnt
+    mkdir ${EFI_MNT}
+    mount {{ boot_efi_partition }} ${EFI_MNT}
+    cp -a /boot/efi/* ${EFI_MNT}
+    umount ${EFI_MNT}
+    rmdir ${EFI_MNT}
 
     # FIXME: Assumes GPT entry is at position 4 (works for me, but...)
     # Remove old GPT entry for build hdd
@@ -334,7 +334,7 @@
   register: shell_output
   failed_when: "' error:' in shell_output.stderr"
 
-- name: Check that boot partition has been set correctly
+- name: Check that efi boot partition has been added to GPT correctly
   shell: |
     set -e
     BLK_PARTUUID=$(  blkid {{ boot_efi_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
@@ -346,11 +346,16 @@
 - name: Check that zfs partition has added to grub
   shell: |
     set -e
+    EFI_MNT=/mnt/efi_mnt
     BLK_PARTUUID=$(  blkid {{ target_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
-    if ! grep ${BLK_PARTUUID} /sysroot/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
-      echo "ZFS partition is missing: ${BLK_PARTUUID}"
+    mkdir ${EFI_MNT}
+    mount {{ boot_efi_partition }} ${EFI_MNT}
+    if ! grep ${BLK_PARTUUID} ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
+      echo "ZFS partition is missing in ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg: ${BLK_PARTUUID}"
       exit 1
     fi
+    umount ${EFI_MNT}
+    rmdir ${EFI_MNT}
     
 - name: Export the pool for reboot
   shell: |

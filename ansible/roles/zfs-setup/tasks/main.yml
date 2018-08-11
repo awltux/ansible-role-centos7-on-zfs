@@ -2,6 +2,11 @@
 # Most of the information for this role comes from:
 #   https://www.csparks.com/BootFedoraZFS/index.md
 
+- name: 'Centos distro must be version 7.{{ centos_minor_version }}.{{ centos_build_version }}'
+  fail:
+    msg: 'This is Centos {{ ansible_distribution_version }}'
+  when: ansible_distribution == 'CentOS' and ansible_distribution_version != '7.{{ centos_minor_version }}.{{ centos_build_version }}'
+ 
 - name: Set SELinux to permissive in current session
   shell: setenforce 0
 
@@ -54,7 +59,7 @@
 
 - name: 'Install zfs repo config for CentOS'
   package:
-    name: 'http://download.zfsonlinux.org/epel/zfs-release.el7_5.noarch.rpm'
+    name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}_{{ centos_minor_version }}.noarch.rpm'
   when: ansible_distribution == 'CentOS'
 
 - name: Kernel is correct version. Install ZFS packages and dependencies.

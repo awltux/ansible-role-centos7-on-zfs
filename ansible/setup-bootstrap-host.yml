@@ -3,6 +3,8 @@
   # Must run this as root
   become: true
   vars:
+    centos_minor_version: '5'
+    centos_build_version: '1804'
     target_device: '/dev/sda'
     target_partition_number: '3'
     target_partition: '{{ target_device }}{{ target_partition_number }}'

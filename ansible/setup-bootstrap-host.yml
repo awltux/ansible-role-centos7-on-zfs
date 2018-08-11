@@ -4,7 +4,7 @@
   become: true
   vars:
     target_device: '/dev/sda'
-    target_partition_number: '2'
+    target_partition_number: '3'
     target_partition: '{{ target_device }}{{ target_partition_number }}'
     boot_efi_partition: '{{ target_device }}1'
     second_disk: false

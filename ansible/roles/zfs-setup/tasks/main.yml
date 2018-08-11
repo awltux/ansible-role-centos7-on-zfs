@@ -74,13 +74,13 @@
   failed_when: "rpm_list.stdout_lines|length == 0"
   changed_when: false
 
-- name: Copy zmogrify template onto system
+- name: Copy zmogrify template into zfs chroot system
   template:
     src: "{{ role_path }}/templates/zmogrify"
     dest: /usr/local/sbin/
     mode: u=rwx,g=r,o=r
 
-- name: Copy zenter onto system
+- name: Copy zenter into zfs chroot system
   copy:
     src: "{{ role_path }}/files/zenter"
     dest: /usr/local/sbin/
@@ -209,6 +209,11 @@
     fi
   when: wipe_partition == 'y'
 
+- name: Unmount zfs chroot from /sysroot
+  mount:
+    path: /sysroot
+    state: unmounted
+
 - name: Create a zpool called pool if not already done
   shell: |
     set -e   # prevent silent failures
@@ -253,11 +258,6 @@
     fi
  
     if ! ( zfs list | grep "^pool/ROOT/{{ target_partition_id }}.*/sysroot" ); then
- 
-      if ( mount | grep "/sysroot" ); then
-        umount /sysroot
-      fi
- 
       # export/import the zpool on an alternative directory
       # This gives flexability of what will be mounted on /
       zpool export pool
@@ -266,10 +266,6 @@
     fi
     
     if ! ( mount | grep "^pool/ROOT/{{ target_partition_id }} on /sysroot" ); then
-      if ( mount | grep "/sysroot" ); then
-        umount /sysroot
-      fi
- 
       # Mount os dataset onto /sysroot/
       zfs set mountpoint=/ pool/ROOT/{{ target_partition_id }}
       zfs mount pool/ROOT/{{ target_partition_id }}

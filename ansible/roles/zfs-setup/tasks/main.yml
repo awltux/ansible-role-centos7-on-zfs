@@ -9,31 +9,50 @@
   register: rpm_dist
   changed_when: false
 
-- name: 'Install repo details for zfs'
-  dnf:
-    name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
-    disable_gpg_check: yes
+- name: 'Install epel repo config for CentOS'
+  package:
+    name: 'epel-release'
+  when: ansible_distribution == 'CentOS'
 
 - name: Install additional package dependencies
-  dnf:
-    name: libselinux-python, grub2-efi-x64-modules, gdisk, kernel-devel, zfs, zfs-dracut
+  package:
+    name: libselinux-python, grub2-efi-x64-modules, gdisk, kernel-devel
  
-- name: upgrade all packages
-  dnf:
+- name: Upgrade Distro packages
+  package:
     name: "*"
     state: latest
 
 - name: Running and latest installed kernel must match
   shell: |
     set -e   # prevent silent failures
-    installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sort | tail -1 | sed "s:/boot/vmlinuz-::" )
+    # find the latest installed kernel image; 
+    # strip end of kernel name '{{ rpm_dist.stdout }}.x86_64' to make it possible to compare.
+    installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sed "s/{{ rpm_dist.stdout }}.x86_64//" | sort | tail -1 | sed "s:/boot/vmlinuz-::" )
     runningKernel=$( uname -r )
     if [[ "${installedKernel}" != "${runningKernel}" ]]; then
+      echo "installedKernel=${installedKernel}"
+      echo "  runningKernel=${runningKernel}"
       echo "UPDATED KERNEL REQUIRES REBOOT!"
       exit 1
     fi
   changed_when: false
 
+- name: 'Install zfs repo for Fedora'
+  package:
+    name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+  when: ansible_distribution == 'Fedora'
+
+- name: 'Install zfs repo config for CentOS'
+  package:
+    name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+  when: ansible_distribution == 'CentOS'
+
+- name: Kernel is correct version. Install ZFS packages and dependencies.
+  package:
+    name: zfs, zfs-dracut
+#    name: zfs, zfs-dracut, zfs-dkms, spl, spl-dkms
+ 
 - name: Set SELinux to permissive in current session
   shell: setenforce 0
 

@@ -60,7 +60,6 @@
 - name: Kernel is correct version. Install ZFS packages and dependencies.
   package:
     name: zfs, zfs-dracut
-#    name: zfs, zfs-dracut, zfs-dkms, spl, spl-dkms
  
 - name: Is system configured to use EFI?
   shell: rpm -qa | grep grub2-efi

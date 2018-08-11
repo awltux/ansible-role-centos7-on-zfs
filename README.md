@@ -83,6 +83,9 @@ Install basic tools for getting and running playbook
 Clone the ansible playbook
     ```git clone https://github.com/awltux/fedora-hosted-docker-cluster-ansible-playbook.git```
 
+# If ':${github_password}' ommitted it can be cached using:
+    git config --global credential.helper 'cache --timeout=28800'
+
 # Set some aliases to help developers
 ```
 cat >> ~/.bashrc <<HEREDOC
@@ -101,8 +104,6 @@ github_username='yourusername'
 github_password='yourpassword'
 git config --global url."https://${github_username}:${github_password}@github.com"
 
-# If ':${github_password}' ommitted it can be cached using:
-git config --global credential.helper 'cache --timeout=28800'
 ```
 
 

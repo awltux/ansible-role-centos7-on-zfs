@@ -310,8 +310,9 @@
     set -e   # prevent silent failures
 
     # Ensure the boot partition auto mounts onto /boot/efi at startup
-    BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
-    echo "UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
+    # sed: Extract UUID value from blkid output for boot partition
+    BLK_UUID=$( blkid {{ boot_efi_partition }} |  sed "s/.* UUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
+    echo "UUID=${BLK_UUID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
     echo "pool/ROOT/fedora-28  /          zfs   default                    0 0" >> /sysroot/etc/fstab
 
 - name: Allow Fedora:28+ to boot into zfs

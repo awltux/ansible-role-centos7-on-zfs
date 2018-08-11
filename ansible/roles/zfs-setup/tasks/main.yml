@@ -26,7 +26,7 @@
 - name: Running and latest installed kernel must match
   shell: |
     set -e   # prevent silent failures
-    installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sort | head -1 | sed "s:/boot/vmlinuz-::" )
+    installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sort | tail -1 | sed "s:/boot/vmlinuz-::" )
     runningKernel=$( uname -r )
     if [[ "${installedKernel}" != "${runningKernel}" ]]; then
       echo "UPDATED KERNEL REQUIRES REBOOT!"

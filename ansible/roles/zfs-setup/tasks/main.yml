@@ -6,6 +6,7 @@
   fail:
     msg: 'This is Centos {{ ansible_distribution_version }}'
   when: ansible_distribution == 'CentOS' and ansible_distribution_version != '7.{{ centos_minor_version }}.{{ centos_build_version }}'
+  warn: no
  
 - name: Set SELinux to permissive in current session
   shell: setenforce 0

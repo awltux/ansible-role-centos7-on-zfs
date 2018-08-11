@@ -4,10 +4,15 @@
 
 unmount_all() {
   # Alway attempt to unmount the drives in reverse order
-  umount $target/dev/pts | echo "Unmounted $target/dev/pts"
-  umount $target/dev/ | echo "Unmounted $target/dev/"
-  umount $target/sys/ | echo "Unmounted $target/sys/"
-  umount $target/proc/ | echo "Unmounted $target/proc/"
+  umount $target/dev/pts || echo "Unmounted $target/dev/pts"
+  umount $target/dev/ || echo "Unmounted $target/dev/"
+  umount $target/sys/ || echo "Unmounted $target/sys/"
+  umount $target/proc/ || echo "Unmounted $target/proc/"
+
+  if ( mount | grep ${target}/boot/efi ); then
+    umount ${target}/boot/efi || echo "Unmounted ${target}/boot/efi"
+  fi
+
 }
 
 mount_all() {

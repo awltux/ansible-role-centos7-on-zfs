@@ -313,10 +313,8 @@
 
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
-    echo > /sysroot/etc/fstab <<HEREDOC
-      UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2
-      pool/ROOT/fedora-28  /          zfs   default                    0 0
-    HEREDOC
+    echo "UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
+    echo "pool/ROOT/fedora-28  /          zfs   default                    0 0" >> /sysroot/etc/fstab
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |

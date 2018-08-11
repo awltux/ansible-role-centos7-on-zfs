@@ -280,6 +280,11 @@
     mkdir -p /sysroot/sys
     mkdir -p /sysroot/dev
 
+- name: Ensure /mnt/efi_mnt is unmounted
+  mount:
+    path: /mnt/efi_mnt
+    state: unmounted
+
 - name: Initialise Boot files on efi_boot partition
   shell: | 
     set -e   # prevent silent failures

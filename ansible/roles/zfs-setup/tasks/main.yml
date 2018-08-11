@@ -262,8 +262,6 @@
       # This gives flexability of what will be mounted on /
       zpool export pool
       
-      # by-id seems to cause problems when running:
-      #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
       zpool import pool -d /dev/disk/by-partuuid -o altroot=/sysroot
     fi
     

@@ -3,6 +3,7 @@
   # Must run this as root
   become: true
   vars:
+    target_partition_id: '{{ ansible_distribution }}/{{ansible_distribution_version}}'
     centos_minor_version: '5'
     centos_build_version: '1804'
     target_device: '/dev/sda'

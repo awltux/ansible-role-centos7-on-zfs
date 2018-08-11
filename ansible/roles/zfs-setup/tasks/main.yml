@@ -74,9 +74,9 @@
   failed_when: "rpm_list.stdout_lines|length == 0"
   changed_when: false
 
-- name: Copy zmogrify onto system
-  copy:
-    src: "{{ role_path }}/files/zmogrify"
+- name: Copy zmogrify template onto system
+  template:
+    src: "{{ role_path }}/templates/zmogrify"
     dest: /usr/local/sbin/
     mode: u=rwx,g=r,o=r
 

@@ -2,6 +2,20 @@
 # Most of the information for this role comes from:
 #   https://www.csparks.com/BootFedoraZFS/index.md
 
+- name: 'Centos distro must be version 7.{{ centos_minor_version }}.{{ centos_build_version }}'
+  fail:
+    msg: 'This is Centos {{ ansible_distribution_version }}'
+  when: ansible_distribution == 'CentOS' and ansible_distribution_version != '.'.join(('7', centos_minor_version, centos_build_version))
+ 
+- name: Set SELinux to permissive in current session
+  shell: setenforce 0
+
+- name: Set SELinux to permissive after reboot
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: 'SELINUX=permissive'
+    
 - name: 'Identify the rpm distribution'
   shell: rpm -E %dist
   args:
@@ -16,7 +30,7 @@
 
 - name: Install additional package dependencies
   package:
-    name: libselinux-python, grub2-efi-x64-modules, gdisk, kernel-devel
+    name: libselinux-python, grub2-efi-x64-modules, gdisk
  
 - name: Upgrade Distro packages
   package:
@@ -45,23 +59,13 @@
 
 - name: 'Install zfs repo config for CentOS'
   package:
-    name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+    name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}_{{ centos_minor_version }}.noarch.rpm'
   when: ansible_distribution == 'CentOS'
 
 - name: Kernel is correct version. Install ZFS packages and dependencies.
   package:
     name: zfs, zfs-dracut
-#    name: zfs, zfs-dracut, zfs-dkms, spl, spl-dkms
  
-- name: Set SELinux to permissive in current session
-  shell: setenforce 0
-
-- name: Set SELinux to permissive after reboot
-  lineinfile:
-    path: /etc/selinux/config
-    regexp: '^SELINUX='
-    line: 'SELINUX=permissive'
-    
 - name: Is system configured to use EFI?
   shell: rpm -qa | grep grub2-efi
   args:
@@ -131,7 +135,7 @@
 - name: Disable the import cache as it can cause problems as zfs pool changes
   service:
     name: zfs-import-cache
-    enabled: yes
+    enabled: no
 
 - name: Enable the import-scan to scan devices 
   service:
@@ -258,8 +262,6 @@
       # This gives flexability of what will be mounted on /
       zpool export pool
       
-      # by-id seems to cause problems when running:
-      #    grub2-probe --device ata-VBOX_HARDDISK_*-part2 --target=partmap
       zpool import pool -d /dev/disk/by-partuuid -o altroot=/sysroot
     fi
     
@@ -300,11 +302,17 @@
     # Create a new boot entry in GPT 
     efibootmgr -d {{ target_device }} -v -c -l /EFI/fedora/shimx64.efi -L Fedora28
 
+  when: second_disk == true
+
+
+- name: Initialise /etc/fstab file to mount new locations
+  shell: | 
+    set -e   # prevent silent failures
+
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
     echo "UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
     echo "pool/ROOT/fedora-28  /          zfs   default                    0 0" >> /sysroot/etc/fstab
-  when: second_disk == true
 
 - name: Allow Fedora:28+ to boot into zfs
   shell: |

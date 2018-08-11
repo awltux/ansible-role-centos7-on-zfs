@@ -65,22 +65,16 @@ setup_boot_efi() {
   mount_boot_efi
 
   # Copy any updated zfs grub modules into efi boot partition
-  mkdir -p /boot/efi/EFI/fedora/x86_64-efi
-  cp -a /usr/lib/grub/x86_64-efi/* /boot/efi/EFI/fedora/x86_64-efi
-
-  # Calls to 'grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg' are failing with:
-  #    /usr/sbin/grub2-probe: error: cannot find a GRUB drive for ata-VBOX_HARDDISK_*-part2.  Check your device.map.
-  # Something (zfs or grub) is assuming devices only exist under /dev
-  # HACK ALERT: Create a /dev/* link for all devices under /dev/disk/by-id/*
-  $( cd /dev; ln -f -s /dev/disk/by-id/* . )
+  mkdir -p /boot/efi/EFI/{{ ansible_distribution }}/x86_64-efi
+  cp -a /usr/lib/grub/x86_64-efi/* /boot/efi/EFI/{{ ansible_distribution }}/x86_64-efi
 
   # Rebuild the grub config
-  grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
+  grub2-mkconfig -o /boot/efi/EFI/{{ ansible_distribution }}/grub.cfg
 
   # Set grub boot menu item 0 as the default
   grubby --set-default-index 0
 
-  if ! grep "${installedKernel}" /boot/efi/EFI/fedora/grub.cfg; then
+  if ! grep "${installedKernel}" /boot/efi/EFI/{{ ansible_distribution }}/grub.cfg; then
     echo "Installed Kernel not mentioned in grub.cfg"
     exit 1
   fi
@@ -93,7 +87,7 @@ setup_boot_efi() {
 
   # fat32 filesystem doesnt support symbolic links; just copy it
   # \cp means ignore any alias e.g. cp -i which would prompt for replace
-  \cp -u /boot/efi/EFI/fedora/grubenv /boot/efi/boot/grub2/
+  \cp -u /boot/efi/EFI/{{ ansible_distribution }}/grubenv /boot/efi/boot/grub2/
 
   # SYS_EXIT will trigger trap to call umount_boot_efi()
 }

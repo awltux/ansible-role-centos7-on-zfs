@@ -2,6 +2,15 @@
 # Most of the information for this role comes from:
 #   https://www.csparks.com/BootFedoraZFS/index.md
 
+- name: Set SELinux to permissive in current session
+  shell: setenforce 0
+
+- name: Set SELinux to permissive after reboot
+  lineinfile:
+    path: /etc/selinux/config
+    regexp: '^SELINUX='
+    line: 'SELINUX=permissive'
+    
 - name: 'Identify the rpm distribution'
   shell: rpm -E %dist
   args:
@@ -45,23 +54,13 @@
 
 - name: 'Install zfs repo config for CentOS'
   package:
-    name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
+    name: 'http://download.zfsonlinux.org/epel/zfs-release.el7_5.noarch.rpm'
   when: ansible_distribution == 'CentOS'
 
 - name: Kernel is correct version. Install ZFS packages and dependencies.
   package:
     name: zfs, zfs-dracut
-#    name: zfs, zfs-dracut, zfs-dkms, spl, spl-dkms
  
-- name: Set SELinux to permissive in current session
-  shell: setenforce 0
-
-- name: Set SELinux to permissive after reboot
-  lineinfile:
-    path: /etc/selinux/config
-    regexp: '^SELINUX='
-    line: 'SELINUX=permissive'
-    
 - name: Is system configured to use EFI?
   shell: rpm -qa | grep grub2-efi
   args:

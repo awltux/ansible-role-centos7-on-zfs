@@ -83,7 +83,7 @@ setup_boot_efi() {
   # Copy the /boot files onto the /boot/efi partition
   # grub.cfg menu is updated to look for the 
   # kernel and initrd files on /boot/efi/boot
-  rsync -a --no-links --delete --exclude=efi /boot /boot/efi/
+ # rsync -a --no-links --delete --exclude=efi /boot /boot/efi/
 
   # fat32 filesystem doesnt support symbolic links; just copy it
   # \cp means ignore any alias e.g. cp -i which would prompt for replace

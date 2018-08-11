@@ -350,8 +350,8 @@
     BLK_PARTUUID=$(  blkid {{ target_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
     mkdir ${EFI_MNT}
     mount {{ boot_efi_partition }} ${EFI_MNT}
-    if ! grep ${BLK_PARTUUID} ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
-      echo "ZFS partition is missing in ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg: ${BLK_PARTUUID}"
+    if ! grep "pool/ROOT/{{ target_partition_id }}" ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
+      echo "ZFS partition is missing in ${EFI_MNT}/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg: pool/ROOT/{{ target_partition_id }}"
       exit 1
     fi
     umount ${EFI_MNT}

@@ -29,7 +29,7 @@
     # find the latest installed kernel image; 
     # strip end of kernel name '{{ rpm_dist.stdout }}.x86_64' to make it possible to compare.
     installedKernel=$( ls -1 /boot/vmlinuz-* | grep x86_64 | sed "s/{{ rpm_dist.stdout }}.x86_64//" | sort | tail -1 | sed "s:/boot/vmlinuz-::" )
-    runningKernel=$( uname -r )
+    runningKernel=$( uname -r | sed "s/{{ rpm_dist.stdout }}.x86_64//" )
     if [[ "${installedKernel}" != "${runningKernel}" ]]; then
       echo "installedKernel=${installedKernel}"
       echo "  runningKernel=${runningKernel}"

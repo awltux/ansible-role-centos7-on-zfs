@@ -50,6 +50,8 @@
       echo "UPDATED KERNEL REQUIRES REBOOT!"
       exit 1
     fi
+  args:
+    executable: /bin/bash
   changed_when: false
 
 - name: 'Install zfs repo for {{ target_partition_id }}'
@@ -208,6 +210,8 @@
       dd if=/dev/zero of={{ target_partition }} bs=512 count=2048
       dd if=/dev/zero of={{ target_partition }} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
     fi
+  args:
+    executable: /bin/bash
   when: wipe_partition == 'y'
 
 - name: Unmount zfs chroot from /sysroot
@@ -271,6 +275,8 @@
       zfs set mountpoint=/ pool/ROOT/{{ target_partition_id }}
       zfs mount pool/ROOT/{{ target_partition_id }}
     fi
+  args:
+    executable: /bin/bash
   
 - name: Copy the installed os from local drive to the zfs mount
   shell: |
@@ -304,6 +310,8 @@
     # Create a new boot entry in GPT 
     efibootmgr -d {{ target_device }} -v -c -l /EFI/{{ ansible_distribution|lower }}/shimx64.efi -L {{ target_partition_id }}
 
+  args:
+    executable: /bin/bash
   when: second_disk == true
 
 
@@ -316,6 +324,8 @@
     BLK_PARTUUID=$( blkid {{ boot_efi_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
     echo "PARTUUID=${BLK_PARTUUID}             /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
     echo "pool/ROOT/{{ target_partition_id }}  /          zfs   default                    0 0" >> /sysroot/etc/fstab
+  args:
+    executable: /bin/bash
 
 - name: Allow {{ target_partition_id }} to boot into zfs
   shell: |
@@ -334,11 +344,15 @@
       exit 1
     fi
     echo "GRUB_DEVICE_BOOT=${DISK_ID}" >> /sysroot/etc/default/grub
+  args:
+    executable: /bin/bash
 
 - name: Setup the /sysroot as zfs boot system
   shell:  zenter /sysroot <<< zmogrify
   register: shell_output
   failed_when: "' error:' in shell_output.stderr"
+  args:
+    executable: /bin/bash
 
 - name: Check that efi boot partition has been added to GPT correctly
   shell: |
@@ -348,6 +362,8 @@
       echo "Boot disk missing: ${BLK_PARTUUID}"
       exit 1
     fi
+  args:
+    executable: /bin/bash
     
 - name: Check that zfs partition has added to grub
   shell: |
@@ -361,6 +377,8 @@
     fi
     umount ${EFI_MNT}
     rmdir ${EFI_MNT}
+  args:
+    executable: /bin/bash
     
 - name: Export the pool for reboot
   shell: |
@@ -368,6 +386,8 @@
     umount /sysroot
     # Make the pool ready for first import
     zpool export pool
+  args:
+    executable: /bin/bash
 
 - name: Reboot to ZFS goodness
   debug:

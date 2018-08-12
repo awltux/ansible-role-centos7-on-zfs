@@ -310,9 +310,9 @@
     set -e   # prevent silent failures
 
     # Ensure the boot partition auto mounts onto /boot/efi at startup
-    # sed: Extract UUID value from blkid output for boot partition
-    BLK_UUID=$( blkid {{ boot_efi_partition }} |  sed "s/.* UUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
-    echo "UUID=${BLK_UUID}                     /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
+    # sed: Extract PARTUUID value from blkid output for boot partition
+    BLK_PARTUUID=$( blkid {{ boot_efi_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
+    echo "UUID=${BLK_PARTUUID}                     /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
     echo "pool/ROOT/{{ target_partition_id }}  /          zfs   default                    0 0" >> /sysroot/etc/fstab
 
 - name: Allow {{ target_partition_id }} to boot into zfs
@@ -341,9 +341,9 @@
 - name: Check that boot partition has been set correctly
   shell: |
     set -e
-    BLK_UUID=$(  blkid {{ boot_efi_partition }} |  sed "s/.* UUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
-    if ! efibootmgr -v -d {{ target_device }} | grep ${BLK_UUID}; then
-      echo "Boot disk missing: ${BLK_UUID}"
+    BLK_PARTUUID=$(  blkid {{ boot_efi_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
+    if ! efibootmgr -v -d {{ target_device }} | grep ${BLK_PARTUUID}; then
+      echo "Boot disk missing: ${BLK_PARTUUID}"
       exit 1
     fi
     

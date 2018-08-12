@@ -16,7 +16,7 @@
 
   vars_prompt:
     - name: wipe_partition
-      prompt: "Press 'y' to wipe partition"
+      prompt: "Press 'y' to wipe partition '{{ target_partition }}'"
       default: 'n'
 
   roles:

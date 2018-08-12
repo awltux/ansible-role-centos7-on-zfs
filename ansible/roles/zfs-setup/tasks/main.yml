@@ -52,7 +52,7 @@
     fi
   changed_when: false
 
-- name: 'Install zfs repo for Fedora'
+- name: 'Install zfs repo for {{ target_partition_id }}'
   package:
     name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
   when: ansible_distribution == 'Fedora'
@@ -94,7 +94,7 @@
   with_items:
     # Add zfs module to grub:
     # https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html
-    # zmogrify copies modules to: /boot/efi/EFI/fedora/x86_64-efi
+    # zmogrify copies modules to: /boot/efi/EFI/{{ ansible_distribution }}/x86_64-efi
     - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
@@ -229,7 +229,7 @@
 
       # Grub failed to boot complaining that kernel needs to be loaded first. 
       # Manually navigating to the kernel image in the grub console 
-      #   (grub) ls (hd1,gpt2)/ROOT/fedora-28@/
+      #   (grub) ls (hd1,gpt2)/ROOT/{{ target_partition_id }}@/
       #          error: compression algorithm inherit not supported
       # NOTE: This has only been tested on VirtualBox so far
       # Disabled this until problem can be identified
@@ -239,20 +239,20 @@
       #UNTESTED#  zfs inherit compression pool
     fi
 
-    if ! ( zfs list | grep "^pool/ROOT/fedora-28 " ) > /dev/null; then
+    if ! ( zfs list | grep "^pool/ROOT/{{ target_partition_id }} " ) > /dev/null; then
       # Create a dataset on zpool called pool
-      zfs create -p pool/ROOT/fedora-28
+      zfs create -p pool/ROOT/{{ target_partition_id }}
       # Store extended data directly in inodes
-      zfs set xattr=sa pool/ROOT/fedora-28
+      zfs set xattr=sa pool/ROOT/{{ target_partition_id }}
 
-      # Allows copying fedora OS journal files 
-      zfs set acltype=posixacl pool/ROOT/fedora-28
+      # Allows copying OS journal files 
+      zfs set acltype=posixacl pool/ROOT/{{ target_partition_id }}
       
       # Allow child datasets to inherit acltype attribute
-      # zfs inherit acltype pool/ROOT/fedora-28
+      # zfs inherit acltype pool/ROOT/{{ target_partition_id }}
     fi
  
-    if ! ( zfs list | grep "^pool/ROOT/fedora-28.*/sysroot" ); then
+    if ! ( zfs list | grep "^pool/ROOT/{{ target_partition_id }}.*/sysroot" ); then
  
       if ( mount | grep "/sysroot" ); then
         umount /sysroot
@@ -265,17 +265,17 @@
       zpool import pool -d /dev/disk/by-partuuid -o altroot=/sysroot
     fi
     
-    if ! ( mount | grep "^pool/ROOT/fedora-28 on /sysroot" ); then
+    if ! ( mount | grep "^pool/ROOT/{{ target_partition_id }} on /sysroot" ); then
       if ( mount | grep "/sysroot" ); then
         umount /sysroot
       fi
  
-      # Mount fedora dataset onto /sysroot/
-      zfs set mountpoint=/ pool/ROOT/fedora-28
-      zfs mount pool/ROOT/fedora-28
+      # Mount os dataset onto /sysroot/
+      zfs set mountpoint=/ pool/ROOT/{{ target_partition_id }}
+      zfs mount pool/ROOT/{{ target_partition_id }}
     fi
   
-- name: Copy the installed fedora from local drive to the zfs mount
+- name: Copy the installed os from local drive to the zfs mount
   shell: |
     set -e   # prevent silent failures
 
@@ -300,7 +300,7 @@
     efibootmgr -d {{ target_device }} -v -b 4 -B
 
     # Create a new boot entry in GPT 
-    efibootmgr -d {{ target_device }} -v -c -l /EFI/fedora/shimx64.efi -L Fedora28
+    efibootmgr -d {{ target_device }} -v -c -l /EFI/{{ ansible_distribution }}/shimx64.efi -L {{ target_partition_id }}
 
   when: second_disk == true
 
@@ -312,9 +312,9 @@
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     BLK_ID=$( blkid {{ boot_efi_partition }}  -o value | head -1 )
     echo "UUID=${BLK_ID}       /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
-    echo "pool/ROOT/fedora-28  /          zfs   default                    0 0" >> /sysroot/etc/fstab
+    echo "pool/ROOT/{{ target_partition_id }}  /          zfs   default                    0 0" >> /sysroot/etc/fstab
 
-- name: Allow Fedora:28+ to boot into zfs
+- name: Allow {{ target_partition_id }} to boot into zfs
   shell: |
     set -e   # prevent silent failures
     

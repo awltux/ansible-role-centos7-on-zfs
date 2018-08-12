@@ -72,25 +72,26 @@ post_kernel_update_fixes() {
 
   # rebuild the zfs and spl modules need rebuilt
   zver=$(rpm -q zfs | cut -d'-' -f2)
-  if [[ -z "${zver}" ]] || "${zver}" ~= [0-9\.]+ ; then
+  if [[ -z "${zver}" ]] || [[ "${zver}" =~ [0-9\.]\+ ]]; then
     echo "Invalid zfs version extracted from rpm: ${zver}"
     exit 1
   fi 
   dkms install -m spl -v ${zver} -k ${installedKernel}
   dkms install -m zfs -v ${zver} -k ${installedKernel}
 
+  local installedKernelString=${installedKernel}${rpmDist}.${hardwarePlatform}
   # Recreate the /boot/initramfs for the new kernel
   # set -x: Display dracut command
   # set -e: fail on non-zero rc
-  sh -x -e -c "/usr/bin/dracut -fv --kver ${installedKernel}"
+  sh -x -e -c "/usr/bin/dracut -fv --kver ${installedKernelString}"
 
-  if ! [[ -e /boot/initramfs-${installedKernel}.img ]]; then
-    echo "Missing file: /boot/initramfs-${installedKernel}.img"
+  if ! [[ -e /boot/initramfs-${installedKernelString}.img ]]; then
+    echo "Missing file: /boot/initramfs-${installedKernelString}.img"
     exit 1
   fi
   
   # Does new initramfs contain the zfs kernel module?
-  if ! (lsinitrd -k ${installedKernel} | grep "zfs.ko"); then
+  if ! (lsinitrd -k ${installedKernelString} | grep "zfs.ko"); then
     echo "Installed initramfs doesnt contain zfs.ko"
     exit 1
   fi

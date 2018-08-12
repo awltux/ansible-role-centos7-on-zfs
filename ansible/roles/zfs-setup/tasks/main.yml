@@ -341,12 +341,23 @@
 - name: Check that boot partition has been set correctly
   shell: |
     set -e
-    BOOT_PARTITION_ID=$(  blkid -o value {{ boot_efi_partition }} | tail -1 )
-    if ! efibootmgr -v -d {{ target_device }} | grep ${BOOT_PARTITION_ID}; then
-      echo "Boot disk missing: ${BOOT_PARTITION_ID}"
+    BLK_UUID=$(  blkid {{ boot_efi_partition }} |  sed "s/.* UUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
+    if ! efibootmgr -v -d {{ target_device }} | grep ${BLK_UUID}; then
+      echo "Boot disk missing: ${BLK_UUID}"
       exit 1
     fi
     
+- name: Check that zfs partition has added to grub
+  shell: |
+    set -e
+    BLK_PARTUUID=$(  blkid {{ target_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
+    if ! grep ${BLK_PARTUUID} /sysroot/boot/efi/EFI/{{ ansible_distribution }}/grub.cfg; then
+      echo "ZFS partition is missing: ${BLK_PARTUUID}"
+      exit 1
+    fi
+    
+- name: Export the pool for reboot
+  shell: |
     # Do some final clean-up
     umount /sysroot
     # Make the pool ready for first import

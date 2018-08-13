@@ -5,7 +5,7 @@
 - name: 'Centos distro must be version 7.{{ centos_minor_version }}.{{ centos_build_version }}'
   fail:
     msg: 'This is Centos {{ ansible_distribution_version }}'
-  when: ansible_distribution == 'CentOS' and ansible_distribution_version != '.'.join(('7', centos_minor_version, centos_build_version))
+  when: ansible_distribution|lower == 'centos' and ansible_distribution_version != '.'.join(('7', centos_minor_version, centos_build_version))
  
 - name: Set SELinux to permissive in current session
   shell: setenforce 0
@@ -312,7 +312,7 @@
     # Ensure the boot partition auto mounts onto /boot/efi at startup
     # sed: Extract PARTUUID value from blkid output for boot partition
     BLK_PARTUUID=$( blkid {{ boot_efi_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
-    echo "UUID=${BLK_PARTUUID}                     /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
+    echo "PARTUUID=${BLK_PARTUUID}             /boot/efi  vfat  umask=0077,shortname=winnt 0 2" >  /sysroot/etc/fstab
     echo "pool/ROOT/{{ target_partition_id }}  /          zfs   default                    0 0" >> /sysroot/etc/fstab
 
 - name: Allow {{ target_partition_id }} to boot into zfs

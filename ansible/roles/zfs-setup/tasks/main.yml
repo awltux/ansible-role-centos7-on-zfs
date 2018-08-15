@@ -26,7 +26,7 @@
 - name: 'Install epel repo config for CentOS'
   package:
     name: 'epel-release'
-  when: ansible_distribution == 'CentOS'
+  when: ansible_distribution|lower == 'centos'
 
 - name: Install additional package dependencies
   package:
@@ -55,12 +55,12 @@
 - name: 'Install zfs repo for {{ target_partition_id }}'
   package:
     name: 'http://download.zfsonlinux.org/fedora/zfs-release{{ rpm_dist.stdout }}.noarch.rpm'
-  when: ansible_distribution == 'Fedora'
+  when: ansible_distribution|lower == 'fedora'
 
 - name: 'Install zfs repo config for CentOS'
   package:
     name: 'http://download.zfsonlinux.org/epel/zfs-release{{ rpm_dist.stdout }}_{{ centos_minor_version }}.noarch.rpm'
-  when: ansible_distribution == 'CentOS'
+  when: ansible_distribution|lower == 'centos'
 
 - name: Kernel is correct version. Install ZFS packages and dependencies.
   package:
@@ -94,7 +94,7 @@
   with_items:
     # Add zfs module to grub:
     # https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html
-    # zmogrify copies modules to: /boot/efi/EFI/{{ ansible_distribution }}/x86_64-efi
+    # zmogrify copies modules to: /boot/efi/EFI/{{ ansible_distribution|lower }}/x86_64-efi
     - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
 
@@ -300,7 +300,7 @@
     efibootmgr -d {{ target_device }} -v -b 4 -B
 
     # Create a new boot entry in GPT 
-    efibootmgr -d {{ target_device }} -v -c -l /EFI/{{ ansible_distribution }}/shimx64.efi -L {{ target_partition_id }}
+    efibootmgr -d {{ target_device }} -v -c -l /EFI/{{ ansible_distribution|lower }}/shimx64.efi -L {{ target_partition_id }}
 
   when: second_disk == true
 
@@ -351,7 +351,7 @@
   shell: |
     set -e
     BLK_PARTUUID=$(  blkid {{ target_partition }} |  sed "s/.* PARTUUID=\"\([[:alnum:]-]\+\)\" .*/\1/" )
-    if ! grep ${BLK_PARTUUID} /sysroot/boot/efi/EFI/{{ ansible_distribution }}/grub.cfg; then
+    if ! grep ${BLK_PARTUUID} /sysroot/boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
       echo "ZFS partition is missing: ${BLK_PARTUUID}"
       exit 1
     fi

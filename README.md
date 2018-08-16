@@ -27,14 +27,12 @@ If you want to experiment this playbook, create a VirtualBox machine as follows:
 INSTALLATION DESTINATION
 * Storage Configuration | Advanced Custom | Done
 * Edit Selected Device (cogs icon) | Set Partition Table | gpt = selected
+
+## Create Boot Partition
 * Add New Device (Plus icon)
 ** Size: 200Mb
-**  File System
-
-## Create Boot Partitioning
-* Size: 200Mb
-* FileSystem: EFI System Partition
-* MountPoint: /boot/efi
+** FileSystem: EFI System Partition
+** MountPoint: /boot/efi
 * OK
 	
 ## Create empty partition for zpool
@@ -83,7 +81,7 @@ Install basic tools for getting and running playbook
 Clone the ansible playbook
     ```git clone https://github.com/awltux/fedora-hosted-docker-cluster-ansible-playbook.git```
 
-# If ':${github_password}' ommitted it can be cached using:
+If ':${github_password}' ommitted it can be cached using:
     git config --global credential.helper 'cache --timeout=28800'
 
 # Set some aliases to help developers
@@ -109,10 +107,10 @@ git config --global url."https://${github_username}:${github_password}@github.co
 
 # ZFS can find phantom pools on old disks partitions
 
-# Find the size of the partition 
+## Find the size of the partition 
 ZFS_PARTITION="/dev/sda4"
 PARTITION_SIZE=$( sudo blockdev --getsz ${ZFS_PARTITION} )
-# Delete a phantom by deleting first 2048 blocks of partition 
+## Delete a phantom by deleting first 2048 blocks of partition 
 sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048
-# Then delete the last 2048 blocks of partition 
+## Then delete the last 2048 blocks of partition 
 sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))

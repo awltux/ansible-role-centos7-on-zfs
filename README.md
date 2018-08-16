@@ -55,7 +55,7 @@ Create an 'admin' user, with admin rights; server hardening will disable remote 
 
 
 # POST FEDORA INSTALL
-# Setup SSH keys
+## Setup SSH keys
 Either:
 * Use scp to copy pre-existing ~/.ssh folder onto home dir 
 * Ensure that the id_rsa private key is set to 600 permissions 
@@ -68,7 +68,7 @@ Now add this key to the authorized folder
     ```ssh-copy-id admin@localhost```
 Copy these files to a secure area; so next-time you can use the alternative method above
 
-# Putty Auto-Login
+## Putty Auto-Login
 If using Putty, import the private id_rsa key and then save it as id_rsa.ppk
 Use id_rsa.ppk in putty connections to auto login 
 
@@ -84,7 +84,7 @@ Clone the ansible playbook
 If ':${github_password}' ommitted it can be cached using:
     git config --global credential.helper 'cache --timeout=28800'
 
-# Set some aliases to help developers
+## Set some aliases to help developers
 ```
 cat >> ~/.bashrc <<HEREDOC
 alias vi-task="cd ~/fedora-hosted-docker-cluster-ansible-playbook/ansible; vi roles/zfs-setup/tasks/main.yml"
@@ -106,11 +106,13 @@ git config --global url."https://${github_username}:${github_password}@github.co
 
 
 # ZFS can find phantom pools on old disks partitions
-
+A previous ZFS partition can be detected on disks being re-purposed and prevent the partition being re-added to the new ZFS pool. 
 ## Find the size of the partition 
+```
 ZFS_PARTITION="/dev/sda4"
 PARTITION_SIZE=$( sudo blockdev --getsz ${ZFS_PARTITION} )
-## Delete a phantom by deleting first 2048 blocks of partition 
-sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048
+```
+## Delete a phantom ZFS partition by deleting first 2048 blocks of partition 
+```sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048```
 ## Then delete the last 2048 blocks of partition 
-sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))
+```sudo dd if=/dev/zero of=${ZFS_PARTITION} bs=512 count=2048 seek=$((${PARTITION_SIZE} - 2048))```

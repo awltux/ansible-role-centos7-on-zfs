@@ -1,5 +1,10 @@
 #!/bin/bash -e
-# zmogrify - Run dracut and configure grub to boot with root on zfs.
+# zmogrify - Re-create the /boot and grub.cfg files when kernel is updated.
+# Kernel changes auto-run this from /etc/kernel/postinst.d/zmogrify
+# Runs:
+#   * dkms rebuild of spl and zfs kernel modules.
+#   * dracut to re-create /boot/vmlinuz* kernel images.
+#   * grub2-mkconfig to make grub use the new files in /boot.
 
 mount_boot_efi() {
   # Mount efi boot partition using entry in /etc/fstab
@@ -19,13 +24,37 @@ umount_boot_efi() {
   umount /boot/efi
 }
 
-setup_boot_efi() {
+post_kernel_update_fixes() {
   # After an update, but before a reboot, the running 
   # kernel version can be older than the installed kernel version
-  local installedKernel=$(ls -1 /boot/vmlinuz*x86_64 | sort | head -1 | cut -d'-' -f2-)
-  local runningKernel=$(uname -r)
+  
+  local installedKernel
+  local runningKernel
+  local hardwarePlatform
+  local rpmDist
   local zver 
 
+  rpmDist=$(rpm -E %dist)
+  hardwarePlatform=$(uname -i)
+  # list all the boot kernels for the current harware Platform| 
+  # strip off the .el7.x86_64 for | 
+  # ascii sort using (V)ersion strings | 
+  # last in list is highest version | 
+  # cut out the version number
+  installedKernel=$( 
+    ls -1 /boot/vmlinuz*${hardwarePlatform} | 
+	sed "s/${rpmDist}\.${hardwarePlatform}//" | 
+	sort -V | 
+	tail -1 | 
+	cut -d'-' -f2-
+  )
+  
+  # strip off the .el7.x86_64 for comparison to work 
+  runningKernel=$( 
+    uname -r | 
+	sed "s/${rpmDist}\.${hardwarePlatform}//" 
+  )
+  
   if [[ -z "${installedKernel}" ]] || [[ -z "${runningKernel}" ]]; then
     echo "Unable to find Kernel Versions:"
     echo "    installedKernel=${installedKernel}"
@@ -33,20 +62,24 @@ setup_boot_efi() {
     exit 1
   fi
 
-  # Kernel mismatch requires zfs and spl to be rebuilt
   if [[ "${installedKernel}" != "${runningKernel}" ]]; then
-    # zfs and spl modules need rebuilt
-    zver=$(rpm -q zfs | cut -d'-' -f2)
-    if [[ -z "${zver}" ]] || "${zver}" ~= [0-9\.]+ ; then
-      echo "Invalid zfs version extracted from rpm: ${zver}"
-      exit 1
-    fi 
-    dkms install -m spl -v ${zver} -k ${installedKernel}
-    dkms install -m zfs -v ${zver} -k ${installedKernel}
+    echo "Kernel Versions dont match:"
+    echo "    installedKernel=${installedKernel}"
+    echo "      runningKernel=${runningKernel}"
+    echo "REBOOT NOW"
+    exit 1
+  fi
 
+  # rebuild the zfs and spl modules need rebuilt
+  zver=$(rpm -q zfs | cut -d'-' -f2)
+  if [[ -z "${zver}" ]] || "${zver}" ~= [0-9\.]+ ; then
+    echo "Invalid zfs version extracted from rpm: ${zver}"
+    exit 1
   fi 
+  dkms install -m spl -v ${zver} -k ${installedKernel}
+  dkms install -m zfs -v ${zver} -k ${installedKernel}
 
-  # Recreate the initramfs for the new kernel
+  # Recreate the /boot/initramfs for the new kernel
   # set -x: verbose output
   # set -e: fail on non-zero rc
   sh -x -e -c "/usr/bin/dracut -fv --kver ${installedKernel}"
@@ -56,6 +89,7 @@ setup_boot_efi() {
     exit 1
   fi
   
+  # Does initramfs contain the zfs kernel module?
   if ! (lsinitrd -k ${installedKernel} | grep "zfs.ko"); then
     echo "Installed initramfs doesnt contain zfs.ko"
     exit 1
@@ -92,5 +126,5 @@ setup_boot_efi() {
   # SYS_EXIT will trigger trap to call umount_boot_efi()
 }
 
-setup_boot_efi
+post_kernel_update_fixes
 

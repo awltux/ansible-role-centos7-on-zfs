@@ -30,7 +30,7 @@
 
 - name: Install additional package dependencies
   package:
-    name: libselinux-python, grub2-efi-x64-modules, gdisk
+    name: libselinux-python, grub2-efi-x64-modules, gdisk, rpcbind
  
 - name: Upgrade Distro packages
   package:

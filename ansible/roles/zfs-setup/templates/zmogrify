@@ -66,7 +66,7 @@ post_kernel_update_fixes() {
     echo "Kernel Versions dont match:"
     echo "    installedKernel=${installedKernel}"
     echo "      runningKernel=${runningKernel}"
-    echo "REBOOT NOW"
+    echo "REBOOT NOW!"
     exit 1
   fi
 
@@ -80,7 +80,7 @@ post_kernel_update_fixes() {
   dkms install -m zfs -v ${zver} -k ${installedKernel}
 
   # Recreate the /boot/initramfs for the new kernel
-  # set -x: verbose output
+  # set -x: Display dracut command
   # set -e: fail on non-zero rc
   sh -x -e -c "/usr/bin/dracut -fv --kver ${installedKernel}"
 
@@ -89,7 +89,7 @@ post_kernel_update_fixes() {
     exit 1
   fi
   
-  # Does initramfs contain the zfs kernel module?
+  # Does new initramfs contain the zfs kernel module?
   if ! (lsinitrd -k ${installedKernel} | grep "zfs.ko"); then
     echo "Installed initramfs doesnt contain zfs.ko"
     exit 1
@@ -108,18 +108,13 @@ post_kernel_update_fixes() {
   # Set grub boot menu item 0 as the default
   grubby --set-default-index 0
 
-  if ! grep "${installedKernel}" /boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
+  # Does the created grub.cfg contain the new kernel
+  if ! grep "${installedKernel}" /boot/efi/EFI/{{ ansible_distribution|lower }}/grub.cfg >/dev/null; then
     echo "Installed Kernel not mentioned in grub.cfg"
     exit 1
   fi
 
-  # grub has problems booting to /boot on a zfs partition
-  # Copy the /boot files onto the /boot/efi partition
-  # grub.cfg menu is updated to look for the 
-  # kernel and initrd files on /boot/efi/boot
- # rsync -a --no-links --delete --exclude=efi /boot /boot/efi/
-
-  # fat32 filesystem doesnt support symbolic links; just copy it
+  # The fat32 filesystem used by a GPT boot partition doesnt support symbolic links; just copy it
   # \cp means ignore any alias e.g. cp -i which would prompt for replace
   \cp -u /boot/efi/EFI/{{ ansible_distribution|lower }}/grubenv /boot/efi/boot/grub2/
 

@@ -39,7 +39,7 @@ run_piped_commands_in_chroot() {
     TERM="$TERM"            `# Use current TERM` \
     PS1='[\u@chroot \W]\$ ' `# Set the command prompt to highlight chroot context` \
     PATH=/bin:/usr/bin:/sbin:/usr/sbin:/bin `# Set a basic path` \
-    /bin/bash -e -x --login `# Open a console in the chroot and run commands piped to it`
+    /bin/bash --login -e -- `# Open a console in the chroot and run commands piped to it`
 
   # SYS_EXIT will trigger trap which will run unmount_all()
   echo "Exiting chroot environment..."

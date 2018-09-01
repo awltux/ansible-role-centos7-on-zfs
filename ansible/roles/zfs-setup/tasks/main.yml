@@ -106,7 +106,7 @@
     # zmogrify copies modules to: /boot/efi/EFI/{{ ansible_distribution|lower }}/x86_64-efi
     - { name: 'GRUB_PRELOAD_MODULES', value:   '"zfs"' }
     - { name: 'GRUB_DISABLE_OS_PROBER', value: 'true'    }
-    - { name: 'GRUB_CMDLINE_LINUX', value: '"crashkernel=auto rhgb quiet boot=zfs root=ZFS=pool/ROOT/{{ target_partition_id }}"'    }
+    # - { name: 'GRUB_CMDLINE_LINUX', value: '"crashkernel=auto rhgb quiet boot=zfs root=ZFS=pool/ROOT/{{ target_partition_id }}"'    }
 
 - name: 'Make zpool status report the full path of devices'
   blockinfile:

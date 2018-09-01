@@ -70,16 +70,17 @@ post_kernel_update_fixes() {
     exit 1
   fi
 
+  local installedKernelString=${installedKernel}${rpmDist}.${hardwarePlatform}
+
   # rebuild the zfs and spl modules need rebuilt
   zver=$(rpm -q zfs | cut -d'-' -f2)
   if [[ -z "${zver}" ]] || [[ "${zver}" =~ [0-9\.]\+ ]]; then
     echo "Invalid zfs version extracted from rpm: ${zver}"
     exit 1
   fi 
-  dkms install -m spl -v ${zver} -k ${installedKernel}
-  dkms install -m zfs -v ${zver} -k ${installedKernel}
+  dkms install -m spl -v ${zver} -k ${installedKernelString}
+  dkms install -m zfs -v ${zver} -k ${installedKernelString}
 
-  local installedKernelString=${installedKernel}${rpmDist}.${hardwarePlatform}
   # Recreate the /boot/initramfs for the new kernel
   # set -x: Display dracut command
   # set -e: fail on non-zero rc

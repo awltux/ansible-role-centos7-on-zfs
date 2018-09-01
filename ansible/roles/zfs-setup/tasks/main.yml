@@ -378,7 +378,7 @@
     EFI_MNT=/mnt/efi_mnt
     mkdir -p ${EFI_MNT}
     mount {{ boot_efi_partition }} ${EFI_MNT}
-    if ! grep "pool/ROOT/{{ target_partition_id }}" ${EFI_MNT}/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
+    if ! grep "/ROOT/{{ target_partition_id }}" ${EFI_MNT}/EFI/{{ ansible_distribution|lower }}/grub.cfg; then
       echo "ZFS partition is missing in ${EFI_MNT}/EFI/{{ ansible_distribution|lower }}/grub.cfg: pool/ROOT/{{ target_partition_id }}"
       exit 1
     fi

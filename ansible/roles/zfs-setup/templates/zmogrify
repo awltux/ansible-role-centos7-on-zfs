@@ -118,7 +118,7 @@ post_kernel_update_fixes() {
 
   # The fat32 filesystem used by a GPT boot partition doesnt support symbolic links; just copy it
   # \cp means ignore any alias e.g. cp -i which would prompt for replace
-  \cp -u /boot/efi/EFI/{{ ansible_distribution|lower }}/grubenv /boot/efi/boot/grub2/
+  \cp -u /boot/grub2/grubenv /boot/efi/EFI/{{ ansible_distribution|lower }}/
 
   # SYS_EXIT will trigger trap to call umount_boot_efi()
 }

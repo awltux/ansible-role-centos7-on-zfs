@@ -9,3 +9,5 @@ Target features:
 * Support both UEFI and BIOS booting
 * Auto-rebuild kernel modules if kernel updated
 * Script to update grub menu to provide entries for specific zfs snapshots of the system
+* SELinux is enabled
+* Ensure CentOS remains a secure system

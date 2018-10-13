@@ -1,7 +1,0 @@
----
-common_project_dir: '{{ playbook_dir }}/..'
-common_workspace_dir: '{{ common_project_dir }}/..'
-common_target_dir: '{{  common_project_dir }}/target'
-common_git_clones_dir: '{{  common_target_dir }}/git_clones'
-common_github_clone_url: 'https://github.com'
-

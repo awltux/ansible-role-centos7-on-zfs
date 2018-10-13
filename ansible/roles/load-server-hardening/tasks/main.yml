@@ -1,5 +1,0 @@
----
-- name: Clone the ansible hardening repo
-  git:
-    repo: '{{ server_hardening_clone_url }}'
-    dest: '{{ server_hardening_dir  }}'
